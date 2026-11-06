@@ -1,0 +1,19 @@
+{
+  "id": "{731C4932-48B3-4360-BFED-1CA034978BCB}",
+  "name": "WPEEBUSHub",
+  "type": 3,
+  "vendor": "",
+  "aliases": [
+    "NRG-Stack Wärmepumpe (EEBUS)",
+    "NRG-Stack Heat pump (EEBUS)"
+  ],
+  "url": "https://github.com/DG65/NRGWPEEBUSHub",
+  "parentRequirements": [
+    "{26D4DA14-6C0D-4686-AE00-D23234BAD90D}"
+  ],
+  "childRequirements": [],
+  "implemented": [
+    "{12D8B8A8-3EE7-491F-A68A-D632304165D4}"
+  ],
+  "prefix": "WPEEB"
+}

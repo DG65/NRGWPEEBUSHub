@@ -1,0 +1,12 @@
+{
+  "id": "{A48F1429-D712-4753-9B62-BFE0CB821E32}",
+  "author": "DG65",
+  "name": "NRG-Stack WPEEBUSHub",
+  "url": "https://github.com/DG65/NRGWPEEBUSHub",
+  "compatibility": {
+    "version": "9.0"
+  },
+  "version": "0.1.0",
+  "build": 1,
+  "date": 1793919600
+}
