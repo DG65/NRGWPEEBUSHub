@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2 (Build 4, 06.11.2026)
+
+- Rückmeldungen: Der Knopf im Formular führt jetzt zum Forum-Thread des Moduls statt zu GitHub.
+
 ## 0.2.1 (Build 3, 06.11.2026)
 
 - Name im Store und in der Konsole jetzt „NRG-Stack WPEEBUSHub“ wie die anderen Wärmepumpen-Module

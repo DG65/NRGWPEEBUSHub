@@ -19,6 +19,9 @@ trait WPEEBFormular
             '• Hangs as a child instance on the NRG-Stack EEBUS gateway, which takes care of certificate, pairing and connection.',
             '• Delivers the heat pump contract of the NRG-Stack like the other heat pump modules, with measured power and energy.',
         ],
+        '0.2.2' => [
+            '• 💬 Feedback and questions now go to the forum thread for this module - the button in “Feedback” opens it.',
+        ],
         '0.2.1' => [
             '• The module is now called NRG-Stack WPEEBUSHub, like the other NRG-Stack heat pump modules.',
         ],
@@ -28,7 +31,8 @@ trait WPEEBFormular
     ];
 
     private static $WPEEB_REPO_URL     = 'https://github.com/DG65/NRGWPEEBUSHub';
-    private static $WPEEB_ISSUES_URL   = 'https://github.com/DG65/NRGWPEEBUSHub/issues';
+    // Modul-Thread im Symcon-Forum (Kurzform mit Themen-ID, bleibt gültig, auch wenn der Titel geändert wird).
+    private static $WPEEB_FORUM_URL    = 'https://community.symcon.de/t/144877';
     private static $WPEEB_LICENSE_URL  = 'https://github.com/DG65/NRGWPEEBUSHub/blob/main/LICENSE';
     private static $WPEEB_PAYPAL_URL   = 'https://paypal.me/DietmarGureth';
     private static $WPEEB_LIBRARY_GUID = '{A48F1429-D712-4753-9B62-BFE0CB821E32}';
@@ -176,13 +180,12 @@ trait WPEEBFormular
         if ($this->ReadAttributeBoolean('ForumHintGone')) {
             return null;
         }
-        // Forum-Thread folgt mit der ersten Veröffentlichung; bis dahin GitHub.
         return [
             'type' => 'ExpansionPanel', 'name' => 'ForumHintPanel', 'expanded' => true,
             'caption' => '💬  Feedback',
             'items' => [
                 ['type' => 'Label', 'caption' => '🧪 This module is new and so far only tested against a simulated heat pump. Which heat pump did you connect, and did it work? Feedback with manufacturer, model and the use cases shown helps a lot.'],
-                ['type' => 'Button', 'caption' => 'Report a problem on GitHub', 'onClick' => "echo '" . self::$WPEEB_ISSUES_URL . "';", 'link' => true],
+                ['type' => 'Button', 'caption' => 'Open the forum thread', 'onClick' => "echo '" . self::$WPEEB_FORUM_URL . "';", 'link' => true],
                 ['type' => 'Button', 'caption' => 'Got it – don\'t show again', 'onClick' => 'WPEEB_AckForumHint($id);'],
             ],
         ];
