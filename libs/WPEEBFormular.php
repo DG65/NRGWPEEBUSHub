@@ -19,6 +19,9 @@ trait WPEEBFormular
             '• Hangs as a child instance on the NRG-Stack EEBUS gateway, which takes care of certificate, pairing and connection.',
             '• Delivers the heat pump contract of the NRG-Stack like the other heat pump modules, with measured power and energy.',
         ],
+        '0.2.1' => [
+            '• The module is now called NRG-Stack WPEEBUSHub, like the other NRG-Stack heat pump modules.',
+        ],
         '0.2.0' => [
             '• ☀️ New: optional compressor run for PV surplus (EEBUS use case OHPCF). The heat pump offers an additional run, the module shows it and starts, pauses, resumes or aborts it - by hand, by script or by an energy management.',
         ],
@@ -153,8 +156,8 @@ trait WPEEBFormular
     {
         $lib = $this->wpeebLibrary();
         $ver = isset($lib['Version'])
-            ? 'ℹ️ ' . $this->t('Heat pump (EEBUS) version %s (build %s)', (string)$lib['Version'], (string)($lib['Build'] ?? '?'))
-            : self::fest('ℹ️ Heat pump (EEBUS)');
+            ? 'ℹ️ ' . $this->t('WPEEBUSHub version %s (build %s)', (string)$lib['Version'], (string)($lib['Build'] ?? '?'))
+            : self::fest('ℹ️ WPEEBUSHub');
         return [
             'type' => 'ExpansionPanel', 'expanded' => false,
             'caption' => '📖  Documentation & help',

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 (Build 3, 06.11.2026)
+
+- Name im Store und in der Konsole jetzt „NRG-Stack WPEEBUSHub“ wie die anderen Wärmepumpen-Module
+  (Aliase „Wärmepumpe EEBUS“ / „Heat pump EEBUS“ zum Finden). Das EEBUS-Gateway steht in der Anleitung
+  als Voraussetzung.
+
 ## 0.2.0 (Build 2, 06.11.2026)
 
 - ☀️ Neu: **OHPCF** (optionaler Verdichterlauf für PV-Überschuss). Anmeldung zusätzlich als CEM für

@@ -1,7 +1,7 @@
 # NRG-Stack WPEEBUSHub
 
 [![Symcon](https://img.shields.io/badge/Symcon-PHPModul-red.svg)](https://www.symcon.de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/)
-[![Modul Version](https://img.shields.io/badge/Modul%20Version-0.2.0-blue.svg)](library.json)
+[![Modul Version](https://img.shields.io/badge/Modul%20Version-0.2.1-blue.svg)](library.json)
 [![Symcon Version](https://img.shields.io/badge/Symcon%20Version-9.0%2B-green.svg)](https://www.symcon.de)
 [![License](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-lightgrey.svg)](LICENSE)
 [![PayPal](https://img.shields.io/badge/PayPal-Spenden-blue.svg)](https://paypal.me/DietmarGureth)
@@ -25,10 +25,18 @@ NIBE S-Serie, Vaillant über VR940f (Messwerte, ohne LPC). Wolf Link baut die Ve
 auf: dafür das Gateway (ab 0.5.0) auf „Das Gerät verbindet sich zum Gateway“ stellen. Rückmeldungen
 mit echten Geräten sind sehr willkommen.
 
+## Voraussetzungen
+
+- Symcon 9.0 oder neuer
+- **NRG-Stack EEBUS-Gateway ab Version 0.5.0** (eigenes Modul im Store): Es hält Zertifikat und Kopplung
+  und baut die Verbindung zur Wärmepumpe auf. WPEEBUSHub hängt als Kind-Instanz daran, je Wärmepumpe
+  ein Gateway.
+- Eine Wärmepumpe mit freigeschalteter EEBUS-Schnittstelle im selben Netz
+
 ## Einrichtung
 
-1. Instanz „NRG-Stack Wärmepumpe (EEBUS)“ anlegen. Symcon fragt nach der übergeordneten Instanz:
-   **NRG-Stack EEBUS-Gateway** wählen bzw. neu anlegen - je Wärmepumpe ein eigenes Gateway.
+1. Instanz „NRG-Stack WPEEBUSHub“ anlegen und als übergeordnete Instanz ein EEBUS-Gateway wählen bzw.
+   neu anlegen.
 2. Im Gateway Adresse und Port der Wärmepumpe eintragen (Hersteller-App/Anleitung),
    „Gegenstelle prüfen“ und ihren SKI übernehmen.
 3. Den SKI des Gateways in der Hersteller-App der Wärmepumpe freigeben (meist Netzwerk → EEBUS).

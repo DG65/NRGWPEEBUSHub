@@ -4,8 +4,9 @@
   "type": 3,
   "vendor": "",
   "aliases": [
-    "NRG-Stack Wärmepumpe (EEBUS)",
-    "NRG-Stack Heat pump (EEBUS)"
+    "NRG-Stack WPEEBUSHub",
+    "Wärmepumpe EEBUS",
+    "Heat pump EEBUS"
   ],
   "url": "https://github.com/DG65/NRGWPEEBUSHub",
   "parentRequirements": [

@@ -1,7 +1,7 @@
 # NRG-Stack WPEEBUSHub
 
 [![Symcon](https://img.shields.io/badge/Symcon-PHP%20module-red.svg)](https://www.symcon.de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/)
-[![Module version](https://img.shields.io/badge/Module%20version-0.2.0-blue.svg)](library.json)
+[![Module version](https://img.shields.io/badge/Module%20version-0.2.1-blue.svg)](library.json)
 [![Symcon version](https://img.shields.io/badge/Symcon%20version-9.0%2B-green.svg)](https://www.symcon.de)
 [![License](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-lightgrey.svg)](LICENSE)
 [![PayPal](https://img.shields.io/badge/PayPal-Donate-blue.svg)](https://paypal.me/DietmarGureth)
@@ -24,10 +24,17 @@ NIBE S series, Vaillant via VR940f (measurements, no LPC). Wolf Link only opens 
 set the gateway (0.5.0 or newer) to “The device connects to the gateway”. Feedback with real devices is
 very welcome.
 
+## Requirements
+
+- Symcon 9.0 or newer
+- **NRG-Stack EEBUS gateway version 0.5.0 or newer** (separate module in the store): it holds certificate
+  and pairing and establishes the connection to the heat pump. WPEEBUSHub is attached to it as a child
+  instance, one gateway per heat pump.
+- A heat pump with enabled EEBUS interface in the same network
+
 ## Setup
 
-1. Create the instance “NRG-Stack Heat pump (EEBUS)”. Symcon asks for the parent instance: choose or
-   create an **NRG-Stack EEBUS gateway** - one gateway per heat pump.
+1. Create the instance “NRG-Stack WPEEBUSHub” and choose or create an EEBUS gateway as parent instance.
 2. In the gateway, enter address and port of the heat pump (manufacturer app/manual), click
    “Check remote device” and trust its SKI.
 3. Trust the SKI of the gateway in the manufacturer app of the heat pump (usually Network → EEBUS).
