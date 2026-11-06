@@ -72,6 +72,10 @@ function IPS_GetLibrary(string $guid): array
     return ['Version' => $l['version'], 'Build' => $l['build']];
 }
 function GetValue(int $id) { return $GLOBALS['VARS'][$id] ?? null; }
+$GLOBALS['PROFILE'] = [];
+function IPS_VariableProfileExists(string $n): bool { return isset($GLOBALS['PROFILE'][$n]); }
+function IPS_CreateVariableProfile(string $n, int $t): bool { $GLOBALS['PROFILE'][$n] = []; return true; }
+function IPS_SetVariableProfileAssociation(string $n, $w, string $text, string $icon, int $farbe): bool { $GLOBALS['PROFILE'][$n][$w] = $text; return true; }
 
 class IPSModule
 {
@@ -226,8 +230,8 @@ $wp->parentId = 30002;
 $wp->Create();
 $wp->ApplyChanges();
 $anm = json_decode($gw->attrs['Anmeldungen'], true)['30003'] ?? [];
-pruefe(($anm['type'] ?? '') === 'CEM' && count($anm['features'] ?? []) === 4 && in_array('HeatPumpAppliance', $anm['remote']['entityTypes'] ?? [], true),
-    'Beim Gateway angemeldet: CEM mit 4 Client-Features, Wärmepumpen-Entitäten');
+pruefe(($anm['type'] ?? '') === 'CEM' && count($anm['features'] ?? []) === 5 && in_array('HeatPumpAppliance', $anm['remote']['entityTypes'] ?? [], true),
+    'Beim Gateway angemeldet: CEM mit 5 Client-Features (inkl. SmartEnergyManagementPs), Wärmepumpen-Entitäten');
 pruefe($wp->status === 203, 'Angemeldet, Wärmepumpe noch nicht da: Status 203');
 pruefe($wp->timers['Anmelden'] === 60000, 'Anmeldung wird jede Minute aufgefrischt');
 
@@ -279,6 +283,33 @@ pruefe($f['Type'] === 'heatpump' && $f['contractVersion'] === '1.15' && $f['Meas
 $st = json_decode($wp->GetState(), true);
 pruefe($st['lpc'] === true && $st['mpc'] === true && $st['entity'] === [1], 'GetState: LPC und MPC vorhanden');
 
+// OHPCF: Verdichter-Entität mit SmartEnergyManagementPs (eigene Entität neben der Wärmepumpe)
+pruefe(($GLOBALS['PROFILE']['WPEEB.OhpcfState'][3] ?? '') === 'läuft', 'Profil WPEEB.OhpcfState angelegt (3 = läuft)');
+pruefe($wp->SetOptionalRun(true) === false, 'Ohne Angebot: optionaler Lauf nicht möglich');
+$sende(['Event' => 'remoteEntity', 'state' => 'added', 'entity' => [2], 'type' => 'Compressor', 'features' => [['type' => 'SmartEnergyManagementPs']]]);
+pruefe(json_decode($wp->attrs['Geraet'], true)['entity'] === [1] && json_decode($wp->attrs['Geraet'], true)['ohpcfEntity'] === [2], 'Verdichter [2] als OHPCF-Entität, Wärmepumpe [1] bleibt Haupt-Entität');
+$ohpcf = function (string $state, bool $pause = true) {
+    return ['alternatives' => [['powerSequence' => [[
+        'description' => ['sequenceId' => 7, 'powerUnit' => 'W'],
+        'state' => ['sequenceId' => 7, 'state' => $state],
+        'operatingConstraintsInterrupt' => ['sequenceId' => 7, 'isPausable' => $pause, 'isStoppable' => true],
+        'operatingConstraintsDuration' => ['sequenceId' => 7, 'activeDurationMin' => 'PT2M', 'pauseDurationMin' => 'PT1M'],
+        'powerTimeSlot' => [['valueList' => ['value' => [
+            ['sequenceId' => 7, 'valueType' => 'power', 'value' => ['number' => 24, 'scale' => 2]],
+            ['sequenceId' => 7, 'valueType' => 'powerMax', 'value' => ['number' => 3000, 'scale' => 0]]]]]],
+    ]]]]];
+};
+$sende(['Event' => 'data', 'entity' => [2], 'function' => 'smartEnergyManagementPsData', 'data' => $ohpcf('inactive')]);
+pruefe($wp->vars['OhpcfZustand'] === 1 && $wp->vars['OhpcfLeistung'] === 2400.0 && $wp->vars['OhpcfLeistungMax'] === 3000.0 && $wp->vars['OhpcfLauf'] === false,
+    'OHPCF: angeboten, 2400 W erwartet (Skala 2), 3000 W höchstens');
+$sende(['Event' => 'data', 'entity' => [2], 'function' => 'smartEnergyManagementPsData', 'data' => $ohpcf('running', false)]);
+pruefe($wp->vars['OhpcfZustand'] === 3 && $wp->vars['OhpcfLauf'] === true, 'OHPCF: läuft, Schalter an');
+pruefe($wp->PauseOptionalRun() === false && strpos(end($wp->log), 'Pausieren') !== false, 'Nicht pausierbar: Pausieren abgelehnt, Meldung');
+pruefe($wp->StartOptionalRun(0) === false, 'Läuft schon: Starten abgelehnt');
+$sende(['Event' => 'data', 'entity' => [2], 'function' => 'smartEnergyManagementPsData', 'data' => ['alternatives' => []]]);
+pruefe($wp->vars['OhpcfZustand'] === 0, 'Kein Angebot mehr: Zustand „nicht angeboten“');
+$sende(['Event' => 'data', 'entity' => [2], 'function' => 'smartEnergyManagementPsData', 'data' => $ohpcf('inactive')]);
+
 // Grenze schreiben: ohne Verbindung lehnt das Gateway ab
 pruefe($wp->SetPowerLimit(3000, 600) === false && strpos(end($wp->log), 'not connected') !== false, 'Grenze ohne SHIP-Verbindung: Gateway lehnt ab, Meldung im Protokoll');
 $sende(['Event' => 'result', 'msgCounter' => 9, 'function' => 'loadControlLimitListData', 'errorNumber' => 7, 'description' => 'write not allowed']);
@@ -286,7 +317,9 @@ pruefe(strpos(end($wp->log), 'abgelehnt') !== false, 'Abgelehnter Schreibbefehl 
 
 $html = formular($wp);
 pruefe(strpos($html, 'Wozu dieses Modul') !== false && strpos($html, 'Über dieses Modul') !== false && strpos($html, 'Formular: Aufbau') !== false, 'Formular: Rahmen nach Konvention (Zweck, Aufbau, Über dieses Modul)');
-pruefe(strpos($html, 'Wärmepumpe verbunden: HeatPumpAppliance') !== false && strpos($html, 'Leistungsbegrenzung (LPC): vorhanden') !== false, 'Formular: Verbindung und Anwendungsfälle sichtbar');
+pruefe(strpos($html, 'Wärmepumpe verbunden: HeatPumpAppliance') !== false && strpos($html, 'Leistungsbegrenzung (LPC): vorhanden') !== false
+    && strpos($html, 'PV-Überschuss (OHPCF): vorhanden') !== false, 'Formular: Verbindung und Anwendungsfälle (LPC, MPC, OHPCF) sichtbar');
+pruefe(strpos($html, 'Optionaler Lauf: angeboten, pausierbar: ja, abbrechbar: ja, Mindestlauf PT2M') !== false && strpos($html, 'WPEEB_OptionalTesten') !== false, 'Formular: OHPCF-Angebot und Testknöpfe');
 pruefe(strpos($html, 'abgelehnt (Fehler 7') !== false, 'Formular: letzte Antwort der Wärmepumpe sichtbar');
 $aktionen = json_decode($wp->GetConfigurationForm(), true)['actions'];
 pruefe(strpos(json_encode($aktionen), 'WPEEB_GrenzeTesten') !== false, 'Grenze testen steht im Aktionsbereich');
@@ -328,7 +361,7 @@ if ($lv !== false) {
     $wp2->Create();
     $wp2->ApplyChanges();
     $log = sys_get_temp_dir() . '/wpeeb-sim.log';
-    $proc = proc_open([$bin, '-port', (string)$port, '-certpath', $vCert, '-keypath', $vKey, '-remoteski', $gw2->attrs['EigenerSki'], '-type', 'heatpump'],
+    $proc = proc_open([$bin, '-port', (string)$port, '-certpath', $vCert, '-keypath', $vKey, '-remoteski', $gw2->attrs['EigenerSki'], '-type', 'heatpump', '-ohpcf'],
         [1 => ['file', $log, 'w'], 2 => ['file', $log, 'a']], $pipes);
     sleep(2);
     try {
@@ -351,7 +384,7 @@ if ($lv !== false) {
         stream_set_blocking($s, false);
         $gw2->MessageSink(time(), 31001, IM_CHANGESTATUS, [IS_ACTIVE, 0]);
         $phase = 'warten';
-        $ende = time() + 60;
+        $ende = time() + 120;
         while (time() < $ende && $phase !== 'fertig') {
             $r = [$s]; $w = $x = null;
             if (stream_select($r, $w, $x, 1) > 0) {
@@ -364,13 +397,29 @@ if ($lv !== false) {
                 pruefe(true, 'Wärmepumpe angebunden: Leistung ' . $wp2->vars['Leistung'] . ' W, Grenze ' . $wp2->vars['Grenze'] . ' W (aktiv: ' . json_encode($wp2->vars['GrenzeAktiv']) . ')');
                 $phase = 'schreiben';
                 pruefe($wp2->SetPowerLimit(3500, 900) === true, 'WPEEB_SetPowerLimit(3500 W, 15 min) gesendet');
-            } elseif ($phase === 'schreiben' && $wp2->vars['GrenzeAktiv'] === true && $wp2->vars['Grenze'] === 3500.0 && $wp2->vars['Leistung'] == 3500.0) {
+            } elseif ($phase === 'schreiben' && $wp2->vars['GrenzeAktiv'] === true && $wp2->vars['Grenze'] === 3500.0) {
                 $phase = 'aufheben';
-                pruefe(true, 'Wärmepumpe bestätigt 3500 W, gemessene Leistung sinkt auf 3500 W');
+                pruefe(true, 'Wärmepumpe bestätigt die Grenze 3500 W');
                 pruefe($wp2->ClearPowerLimit() === true, 'WPEEB_ClearPowerLimit gesendet');
-            } elseif ($phase === 'aufheben' && $wp2->vars['GrenzeAktiv'] === false && $wp2->vars['Leistung'] == 11000.0) {
+            } elseif ($phase === 'aufheben' && $wp2->vars['GrenzeAktiv'] === false && $wp2->vars['Leistung'] == 800.0 && $wp2->vars['OhpcfZustand'] === 1) {
+                $phase = 'ohpcf';
+                pruefe(true, 'Grenze aufgehoben, Grundlast 800 W; Verdichter bietet optionalen Lauf an (' . $wp2->vars['OhpcfLeistung'] . ' W)');
+                pruefe($wp2->SetOptionalRun(true) === true, 'WPEEB_SetOptionalRun(true): Lauf sofort einplanen');
+            } elseif ($phase === 'ohpcf' && $wp2->vars['OhpcfZustand'] === 3 && $wp2->vars['Leistung'] == 3200.0) {
+                $phase = 'ohpcfPause';
+                pruefe(true, 'Verdichter läuft, gemessene Leistung 3200 W (800 + 2400)');
+                pruefe($wp2->SetOptionalRun(false) === true, 'WPEEB_SetOptionalRun(false): pausieren');
+            } elseif ($phase === 'ohpcfPause' && $wp2->vars['OhpcfZustand'] === 4 && $wp2->vars['Leistung'] == 800.0) {
+                $phase = 'ohpcfWeiter';
+                pruefe(true, 'Verdichter pausiert, Leistung wieder 800 W');
+                pruefe($wp2->ResumeOptionalRun() === true, 'WPEEB_ResumeOptionalRun');
+            } elseif ($phase === 'ohpcfWeiter' && $wp2->vars['OhpcfZustand'] === 3) {
+                $phase = 'ohpcfAbbruch';
+                pruefe(true, 'Verdichter läuft wieder');
+                pruefe($wp2->AbortOptionalRun() === true, 'WPEEB_AbortOptionalRun');
+            } elseif ($phase === 'ohpcfAbbruch' && $wp2->vars['OhpcfZustand'] === 1 && $wp2->vars['Leistung'] == 800.0) {
                 $phase = 'fertig';
-                pruefe(true, 'Grenze aufgehoben, Leistung wieder 11000 W');
+                pruefe(true, 'Abgebrochen: Lauf wieder angeboten, Leistung 800 W');
             }
         }
         pruefe($phase === 'fertig', 'Ablauf vollständig (Stand: ' . $phase . ')');
@@ -380,6 +429,8 @@ if ($lv !== false) {
             'Energie ' . $wp2->vars['Energie'] . ' kWh, Nennleistung ' . $wp2->vars['Nennleistung'] . ' W, Ausfallgrenze ' . $wp2->vars['Ausfallgrenze'] . ' W');
         $simLog = (string)file_get_contents($log);
         pruefe(strpos($simLog, 'SIM limit 3500 W active true') !== false && strpos($simLog, 'SIM limit 3500 W active false') !== false, 'Simulator: Grenze gesetzt und wieder aufgehoben');
+        pruefe(strpos($simLog, 'SIM ohpcf scheduled, start now') !== false && strpos($simLog, 'SIM ohpcf state paused') !== false && strpos($simLog, 'SIM ohpcf aborted') !== false,
+            'Simulator: Lauf eingeplant, pausiert, fortgesetzt, abgebrochen');
         fclose($s);
         unset($GLOBALS['BRUECKE']);
     } finally {

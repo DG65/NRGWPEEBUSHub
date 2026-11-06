@@ -19,6 +19,9 @@ trait WPEEBFormular
             '• Hangs as a child instance on the NRG-Stack EEBUS gateway, which takes care of certificate, pairing and connection.',
             '• Delivers the heat pump contract of the NRG-Stack like the other heat pump modules, with measured power and energy.',
         ],
+        '0.2.0' => [
+            '• ☀️ New: optional compressor run for PV surplus (EEBUS use case OHPCF). The heat pump offers an additional run, the module shows it and starts, pauses, resumes or aborts it - by hand, by script or by an energy management.',
+        ],
     ];
 
     private static $WPEEB_REPO_URL     = 'https://github.com/DG65/NRGWPEEBUSHub';
@@ -159,7 +162,7 @@ trait WPEEBFormular
                 ['type' => 'Label', 'caption' => $ver],
                 ['type' => 'Label', 'caption' => 'Setup: 1. Create this instance; Symcon asks for the parent instance - choose “NRG-Stack EEBUS gateway” (create a new one per heat pump). 2. In the gateway, enter address and port of the heat pump (see the manufacturer app or manual), check the remote device and trust its SKI. 3. Trust the SKI of the gateway in the manufacturer app of the heat pump (usually under Network → EEBUS). As soon as the connection is up, power, energy and limit appear here.'],
                 ['type' => 'Label', 'caption' => 'The power limit (LPC) is a request to the heat pump: it decides itself how it complies. Some devices ignore small limits or do not offer LPC at all - then the limit stays empty here.'],
-                ['type' => 'Label', 'caption' => 'Heat pumps that only open the connection themselves (e.g. Wolf Link): set the gateway (version 0.5.0 or newer) to “The device connects to the gateway”. Not yet supported: the compressor flexibility for PV surplus (OHPCF).'],
+                ['type' => 'Label', 'caption' => 'Heat pumps that only open the connection themselves (e.g. Wolf Link): set the gateway (version 0.5.0 or newer) to “The device connects to the gateway”. The optional compressor run for PV surplus (OHPCF) is only started by hand, by script or by an energy management - the module itself does not decide when.'],
                 ['type' => 'Button', 'caption' => 'Manual on GitHub', 'onClick' => "echo '" . self::$WPEEB_REPO_URL . "';", 'link' => true],
             ],
         ];
