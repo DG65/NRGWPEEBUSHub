@@ -21,7 +21,8 @@ Instanz als Kind hängt.
 Laut Herstellerangaben und Praxisberichten (u. a. evcc, gridX) bieten EEBUS mit Leistung/Energie und
 meist auch Leistungsbegrenzung u. a.: Viessmann Vitocal (über Vitoconnect), Bosch/Buderus mit MX400,
 NIBE S-Serie, Vaillant über VR940f (Messwerte, ohne LPC). Wolf Link baut die Verbindung nur selbst
-auf - das kann das Gateway noch nicht. Rückmeldungen mit echten Geräten sind sehr willkommen.
+auf: dafür das Gateway (ab 0.5.0) auf „Das Gerät verbindet sich zum Gateway“ stellen. Rückmeldungen
+mit echten Geräten sind sehr willkommen.
 
 ## Einrichtung
 
@@ -62,7 +63,6 @@ Bestätigung der Wärmepumpe.
 
 - Verdichter-Flexibilität für PV-Überschuss (EEBUS-Anwendungsfall OHPCF).
 - Temperaturen und Betriebsarten (EEBUS bietet sie nur bei wenigen Geräten).
-- Wärmepumpen, die die Verbindung nur selbst aufbauen (Wolf Link): braucht eine Server-Rolle im Gateway.
 
 ## Für Entwickler
 
