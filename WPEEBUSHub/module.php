@@ -25,7 +25,10 @@ class WPEEBUSHub extends IPSModule
 
     private const GATEWAY_MODULE = '{32809AEC-3A90-455F-8FE4-188DF37D594F}';
     private const DATA_ZUM_GATEWAY = '{26D4DA14-6C0D-4686-AE00-D23234BAD90D}';
-    private const CONTRACT_VERSION = '1.17';
+    private const CONTRACT_VERSION = '1.18';
+    // Steuerhoheit (heatpump 1.18, WP-Steuermuster): wer diese Wärmepumpe steuern darf. Das EMS schreibt nur bei
+    // none/ems und controllable; „other“ = ein anderes System steuert, das EMS hält sich heraus.
+    private const STEUERHOHEIT = ['none', 'ems', 'other'];
     // Gemeinsame Variablenprofile des Verbunds (SUITE.md „Gemeinsame Variablenprofile“), wie MeterHub.
     private const ARCHIV_MODUL = '{43192F0B-135B-4CE7-A0A7-1475603F3060}';
     // Hochgerechneter Zählerstand (wie MeterHub, CalculatedEnergy): Takt und längste Lücke, die noch
@@ -68,6 +71,7 @@ class WPEEBUSHub extends IPSModule
         // danach alle ReboostMinuten erneut eingeplant (evcc reboost, Standard 10 min, 0 = aus).
         $this->RegisterAttributeBoolean('OhpcfWunsch', false);
         $this->RegisterPropertyInteger('ReboostMinuten', 10);
+        $this->RegisterPropertyString('Steuerhoheit', 'none');
         $this->RegisterTimer('Reboost', 0, 'WPEEB_ReboostTakt($_IPS[\'TARGET\']);');
         // Zuletzt gewünschte Grenze {watt, aktiv, bis} und laufende Bestätigung {seit, warte}.
         $this->RegisterAttributeString('GrenzeWunsch', '{}');
@@ -954,6 +958,7 @@ class WPEEBUSHub extends IPSModule
             $v = @$this->GetIDForIdent($ident);
             return $v === false ? 0 : (int)$v;
         };
+        $g = $this->geraet();
         $energieGemessen = $this->energieVomGeraet();
         $energieID = $id($this->energieIdent());
         return [[
@@ -996,9 +1001,29 @@ class WPEEBUSHub extends IPSModule
             'holidayTimerID'       => 0,
             'operatingModeNormID'  => 0,
             'operatingModeID'      => 0,
-            'managedBy'            => 'wpeeb',
+            // WP-Steuermuster (1.18): Stellgrößen als Variablen, geschaltet per RequestAction wie beim charger-Vertrag.
+            'managedBy'            => $this->steuerhoheit(),
+            'controllable'         => $this->steuerbar(),
+            'optionalRunID'        => !empty($g['ohpcfEntity']) ? $id('OhpcfLauf') : 0,
+            'optionalRunPowerID'   => !empty($g['ohpcfEntity']) ? $id('OhpcfLeistung') : 0,
+            'optionalRunPowerMaxID' => !empty($g['ohpcfEntity']) ? $id('OhpcfLeistungMax') : 0,
+            'powerLimitID'         => isset($g['limitId']) ? $id('Grenze') : 0,
+            'powerLimitActiveID'   => isset($g['limitId']) ? $id('GrenzeAktiv') : 0,
             'lastSeenAt'           => $this->ReadAttributeInteger('LastSeenAt'),
         ]];
+    }
+
+    private function steuerhoheit(): string
+    {
+        $h = $this->ReadPropertyString('Steuerhoheit');
+        return in_array($h, self::STEUERHOHEIT, true) ? $h : 'none';
+    }
+
+    /** Steuerbar im Sinne des Vertrags: verbunden und bietet einen Zusatzlauf (OHPCF) oder eine Grenze (LPC) an. */
+    private function steuerbar(): bool
+    {
+        $g = $this->geraet();
+        return (bool)@$this->GetValue('Erreichbar') && (!empty($g['ohpcfEntity']) || isset($g['limitId']));
     }
 
     /** WPEEB_GetState($id): string — Zustand als JSON (Diagnose). */
@@ -1117,10 +1142,16 @@ class WPEEBUSHub extends IPSModule
         ];
 
         $einstellungen = [
-            'type' => 'ExpansionPanel', 'expanded' => false, 'caption' => '⚙️  PV surplus settings',
+            'type' => 'ExpansionPanel', 'expanded' => false, 'caption' => '⚙️  PV surplus and control',
             'items' => [
                 ['type' => 'Label', 'caption' => 'While “Run optional compressor run” is on, the module schedules every run the heat pump newly offers - immediately and again after this interval (like evcc “reboost”). 0 = only immediately.'],
                 ['type' => 'NumberSpinner', 'name' => 'ReboostMinuten', 'caption' => 'Reschedule offered runs every', 'suffix' => 'min', 'minimum' => 0, 'maximum' => 240],
+                ['type' => 'Select', 'name' => 'Steuerhoheit', 'caption' => 'Who controls this heat pump?', 'width' => '420px', 'options' => [
+                    ['caption' => 'No specification (EMS may use the optional run)', 'value' => 'none'],
+                    ['caption' => 'NRG-Stack EMS', 'value' => 'ems'],
+                    ['caption' => 'Another system (EMS stays out)', 'value' => 'other'],
+                ]],
+                ['type' => 'Label', 'caption' => 'The NRG-Stack EMS only switches the heat pump if this is not set to “another system”. It first uses only the optional run for PV surplus; the § 14a limit stays with the SteuerboxHub.'],
             ],
         ];
         return ['verbindung' => $verbindung, 'einstellungen' => $einstellungen, 'energie' => $energie, 'grenze' => $grenze, 'ohpcf' => $ohpcf];

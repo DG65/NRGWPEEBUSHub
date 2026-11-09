@@ -287,8 +287,8 @@ $sende(['Event' => 'data', 'function' => 'loadControlLimitListData', 'data' => [
 pruefe($wp->vars['Grenze'] === 4200.0 && $wp->vars['GrenzeAktiv'] === true, 'LPC: Bezugsgrenze (limitId 7, consume) 4200 W aktiv, Einspeisegrenze übergangen');
 
 $f = $wp->GetFunctions()[0];
-pruefe($f['Type'] === 'heatpump' && $f['contractVersion'] === '1.17' && $f['Measured'] === true && $f['PowerID'] === $wp->ids['Leistung']
-    && $f['EnergyID'] === $wp->ids['Energie'] && $f['energyMeasured'] === true && $f['reachable'] === true && $f['managedBy'] === 'wpeeb', 'Vertrag heatpump 1.17: gemessene Leistung und Energie der Wärmepumpe, erreichbar');
+pruefe($f['Type'] === 'heatpump' && $f['contractVersion'] === '1.18' && $f['Measured'] === true && $f['PowerID'] === $wp->ids['Leistung']
+    && $f['EnergyID'] === $wp->ids['Energie'] && $f['energyMeasured'] === true && $f['reachable'] === true && $f['managedBy'] === 'none', 'Vertrag heatpump 1.18: gemessene Leistung und Energie der Wärmepumpe, erreichbar');
 pruefe($f['function'] === 'heatpump' && $f['powerID'] === $wp->ids['Leistung'] && $f['energyImportID'] === $wp->ids['Energie'] && $f['energyExportID'] === 0
     && $f['energyKind'] === 'counter' && $f['instanceID'] === 30003 && $f['label'] !== '', 'Vertrag: dieselben Felder in MeterHub-Form (function/powerID/energyImportID) für den Energiefluss');
 pruefe(($GLOBALS['PROFILE']['NRG.Watt']['_suffix'] ?? '') === ' W' && ($GLOBALS['PROFILE']['NRG.kWh']['_stellen'] ?? -1) === 1, 'Gemeinsame Profile NRG.Watt/NRG.kWh wie MeterHub angelegt');
@@ -306,6 +306,15 @@ pruefe(abs($k - 500 * 60 / 3600000) < 1e-9 && $z3['p'] === 500.0, 'Hochrechnung:
 [$k, $z4] = WPEEBUSHub::energieRechnen($z, 1180, null, false, true);
 pruefe($k > 0 && $z4 === [], 'Hochrechnung: bei Trennung bis jetzt zählen, dann aufhören');
 
+// WP-Steuermuster 1.18: Stellgrößen als Variablen (EMS schaltet per RequestAction), Steuerhoheit aus der Instanz.
+pruefe($f['controllable'] === true && $f['powerLimitID'] === $wp->ids['Grenze'] && $f['powerLimitActiveID'] === $wp->ids['GrenzeAktiv']
+    && $f['optionalRunID'] === 0, 'Vertrag 1.18: steuerbar, Grenze/Grenze aktiv als Stellgrößen; ohne OHPCF-Angebot kein optionalRunID');
+$wp->props['Steuerhoheit'] = 'other';
+pruefe($wp->GetFunctions()[0]['managedBy'] === 'other', 'Steuerhoheit „anderes System“ im Vertrag (EMS hält sich heraus)');
+$wp->props['Steuerhoheit'] = 'kaputt';
+pruefe($wp->GetFunctions()[0]['managedBy'] === 'none', 'Unbekannte Steuerhoheit gilt als „keine Vorgabe“');
+$wp->props['Steuerhoheit'] = 'none';
+
 $st = json_decode($wp->GetState(), true);
 pruefe($st['lpc'] === true && $st['mpc'] === true && $st['entity'] === [1], 'GetState: LPC und MPC vorhanden');
 
@@ -313,6 +322,8 @@ pruefe($st['lpc'] === true && $st['mpc'] === true && $st['entity'] === [1], 'Get
 pruefe(($GLOBALS['PROFILE']['WPEEB.OhpcfState'][3] ?? '') === 'läuft', 'Profil WPEEB.OhpcfState angelegt (3 = läuft)');
 pruefe($wp->SetOptionalRun(true) === false, 'Ohne Angebot: optionaler Lauf nicht möglich');
 $sende(['Event' => 'remoteEntity', 'state' => 'added', 'entity' => [2], 'type' => 'Compressor', 'features' => [['type' => 'SmartEnergyManagementPs']]]);
+$fo = $wp->GetFunctions()[0];
+pruefe($fo['optionalRunID'] === $wp->ids['OhpcfLauf'] && $fo['optionalRunPowerMaxID'] === $wp->ids['OhpcfLeistungMax'], 'Vertrag 1.18: mit OHPCF-Angebot optionalRunID und Leistungen gesetzt');
 pruefe(json_decode($wp->attrs['Geraet'], true)['entity'] === [1] && json_decode($wp->attrs['Geraet'], true)['ohpcfEntity'] === [2], 'Verdichter [2] als OHPCF-Entität, Wärmepumpe [1] bleibt Haupt-Entität');
 $ohpcf = function (string $state, bool $pause = true) {
     return ['alternatives' => [['powerSequence' => [[

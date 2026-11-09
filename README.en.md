@@ -1,7 +1,7 @@
 # NRG-Stack WPEEBUSHub
 
 [![Symcon](https://img.shields.io/badge/Symcon-PHP%20module-red.svg)](https://www.symcon.de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/)
-[![Module version](https://img.shields.io/badge/Module%20version-0.3.0-blue.svg)](library.json)
+[![Module version](https://img.shields.io/badge/Module%20version-0.4.0-blue.svg)](library.json)
 [![Symcon version](https://img.shields.io/badge/Symcon%20version-9.0%2B-green.svg)](https://www.symcon.de)
 [![License](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-lightgrey.svg)](LICENSE)
 [![PayPal](https://img.shields.io/badge/PayPal-Donate-blue.svg)](https://paypal.me/DietmarGureth)
@@ -67,6 +67,11 @@ very welcome.
 
 ## In the NRG-Stack
 
+The NRG-Stack EMS can use the heat pump via the contract (heat pump control pattern, version 1.18): it switches
+the optional run for PV surplus via the variable “Run optional compressor run”. The setting “Who controls this
+heat pump?” decides whether it may - with “another system” it stays out. The § 14a limit stays with the
+SteuerboxHub.
+
 Power and meter reading use the shared profiles `NRG.Watt`/`NRG.kWh` like MeterHub. For the heat pump
 monitor and the energy flow of the NRG-Stack dashboard to show the history, both must be archived: one
 click under “Energy and archive” in the form is enough. The module never switches archiving on by itself.
@@ -80,7 +85,7 @@ click under “Energy and archive” in the form is enough. The module never swi
 | `WPEEB_SetOptionalRun(int $id, bool $Run)` | bool: optional run on (now) or off (pause, otherwise abort) |
 | `WPEEB_StartOptionalRun(int $id, int $DelaySeconds)` | bool: schedule the offered run |
 | `WPEEB_PauseOptionalRun` / `WPEEB_ResumeOptionalRun` / `WPEEB_AbortOptionalRun` (`int $id`) | bool |
-| `WPEEB_GetFunctions(int $id)` | NRG-Stack heat pump contract (`Type` `heatpump`, version 1.17), measured power/energy |
+| `WPEEB_GetFunctions(int $id)` | NRG-Stack heat pump contract (`Type` `heatpump`, version 1.18), measured power/energy |
 | `WPEEB_GetState(int $id)` | JSON: state for diagnosis |
 
 The limit is a request: the heat pump decides itself how it complies. Whether it accepted it is shown

@@ -1,7 +1,7 @@
 # NRG-Stack WPEEBUSHub
 
 [![Symcon](https://img.shields.io/badge/Symcon-PHPModul-red.svg)](https://www.symcon.de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/)
-[![Modul Version](https://img.shields.io/badge/Modul%20Version-0.3.0-blue.svg)](library.json)
+[![Modul Version](https://img.shields.io/badge/Modul%20Version-0.4.0-blue.svg)](library.json)
 [![Symcon Version](https://img.shields.io/badge/Symcon%20Version-9.0%2B-green.svg)](https://www.symcon.de)
 [![License](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-lightgrey.svg)](LICENSE)
 [![PayPal](https://img.shields.io/badge/PayPal-Spenden-blue.svg)](https://paypal.me/DietmarGureth)
@@ -70,6 +70,11 @@ mit echten Geräten sind sehr willkommen.
 
 ## Im NRG-Stack
 
+Das NRG-Stack EMS kann die Wärmepumpe über den Vertrag nutzen (WP-Steuermuster, Version 1.18): Es schaltet
+den Zusatzlauf bei PV-Überschuss über die Variable „Optionalen Verdichterlauf ausführen“. Die Einstellung
+„Wer steuert diese Wärmepumpe?“ legt fest, ob es das darf - bei „ein anderes System“ hält es sich heraus.
+Die §-14a-Grenze bleibt beim SteuerboxHub.
+
 Leistung und Zählerstand nutzen die gemeinsamen Profile `NRG.Watt`/`NRG.kWh` wie MeterHub. Damit
 WP-Monitor und Energiefluss des NRG-Stack Dashboards den Verlauf zeigen können, müssen beide archiviert
 werden: Im Formular unter „Energie und Archiv“ genügt ein Klick. Das Modul schaltet die Archivierung
@@ -84,7 +89,7 @@ nie von selbst ein.
 | `WPEEB_SetOptionalRun(int $id, bool $Run)` | bool: optionalen Lauf ein (sofort) oder aus (pausieren, sonst abbrechen) |
 | `WPEEB_StartOptionalRun(int $id, int $DelaySeconds)` | bool: angebotenen Lauf einplanen |
 | `WPEEB_PauseOptionalRun` / `WPEEB_ResumeOptionalRun` / `WPEEB_AbortOptionalRun` (`int $id`) | bool |
-| `WPEEB_GetFunctions(int $id)` | Wärmepumpen-Vertrag des NRG-Stack (`Type` `heatpump`, Version 1.17): Leistung gemessen, Energie gemessen oder hochgerechnet (`energyMeasured`), zusätzlich die MeterHub-Felder für den Energiefluss |
+| `WPEEB_GetFunctions(int $id)` | Wärmepumpen-Vertrag des NRG-Stack (`Type` `heatpump`, Version 1.18): Leistung gemessen, Energie gemessen oder hochgerechnet (`energyMeasured`), zusätzlich die MeterHub-Felder für den Energiefluss |
 | `WPEEB_GetState(int $id)` | JSON: Zustand zur Diagnose |
 
 Die Grenze ist eine Vorgabe: Wie die Wärmepumpe sie einhält, entscheidet sie selbst. Ob sie sie

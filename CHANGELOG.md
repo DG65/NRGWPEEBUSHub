@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 (Build 6, 09.11.2026)
+
+- WP-Steuermuster (SUITE.md, heatpump 1.18, Dietmar 09.11.2026): `optionalRunID` (OhpcfLauf, schaltbar),
+  `optionalRunPowerID`/`optionalRunPowerMaxID`, `powerLimitID`/`powerLimitActiveID` (Grenze/GrenzeAktiv) - je
+  nur, wenn die Wärmepumpe OHPCF bzw. LPC anbietet, sonst 0 -, `controllable` (verbunden und steuerbar).
+- `managedBy` aus der neuen Eigenschaft `Steuerhoheit` (none/ems/other, Standard none) statt fest `wpeeb`.
+
 ## 0.3.0 (Build 5, 09.11.2026)
 
 - Neu: Hochgerechneter Zählerstand `EnergieHochgerechnet` (NRG.kWh), wenn die Wärmepumpe keinen eigenen

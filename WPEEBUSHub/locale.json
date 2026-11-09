@@ -128,12 +128,18 @@
             "Optional run cannot be stopped: the heat pump allows neither pausing nor aborting it.": "Optionaler Lauf lässt sich nicht beenden: Die Wärmepumpe erlaubt weder Pausieren noch Abbrechen.",
             "The heat pump did not confirm the power limit within %s s.": "Die Wärmepumpe hat die Leistungsgrenze nicht innerhalb von %s s bestätigt.",
             "Hot water temperature": "Warmwassertemperatur",
-            "⚙️  PV surplus settings": "⚙️  Einstellungen PV-Überschuss",
+            "⚙️  PV surplus and control": "⚙️  PV-Überschuss und Steuerung",
             "While “Run optional compressor run” is on, the module schedules every run the heat pump newly offers - immediately and again after this interval (like evcc “reboost”). 0 = only immediately.": "Solange „Optionalen Verdichterlauf ausführen“ an ist, plant das Modul jeden Lauf ein, den die Wärmepumpe neu anbietet - sofort und erneut nach diesem Abstand (wie „reboost“ bei evcc). 0 = nur sofort.",
             "Reschedule offered runs every": "Angebotene Läufe erneut einplanen alle",
             "• ☀️ Like evcc: while “Run optional compressor run” is on, every run the heat pump newly offers is scheduled immediately and again every 10 minutes (adjustable). Pausing has priority over aborting.": "• ☀️ Wie bei evcc: Solange „Optionalen Verdichterlauf ausführen“ an ist, wird jeder neu angebotene Lauf sofort und erneut alle 10 Minuten eingeplant (einstellbar). Pausieren hat Vorrang vor Abbrechen.",
             "• 🎚️ Like evcc: if the heat pump offers its power limit anew (e.g. after a restart), the module sends the desired limit again until the heat pump confirms it.": "• 🎚️ Wie bei evcc: Bietet die Wärmepumpe ihre Leistungsgrenze neu an (z. B. nach einem Neustart), sendet das Modul die gewünschte Grenze erneut, bis die Wärmepumpe sie bestätigt.",
-            "• 🌡️ New: hot water temperature, if the heat pump reports it via EEBUS (use case MDT).": "• 🌡️ Neu: Warmwassertemperatur, wenn die Wärmepumpe sie über EEBUS meldet (Anwendungsfall MDT)."
+            "• 🌡️ New: hot water temperature, if the heat pump reports it via EEBUS (use case MDT).": "• 🌡️ Neu: Warmwassertemperatur, wenn die Wärmepumpe sie über EEBUS meldet (Anwendungsfall MDT).",
+            "Who controls this heat pump?": "Wer steuert diese Wärmepumpe?",
+            "No specification (EMS may use the optional run)": "Keine Vorgabe (EMS darf den Zusatzlauf nutzen)",
+            "NRG-Stack EMS": "NRG-Stack EMS",
+            "Another system (EMS stays out)": "Ein anderes System (EMS hält sich heraus)",
+            "The NRG-Stack EMS only switches the heat pump if this is not set to “another system”. It first uses only the optional run for PV surplus; the § 14a limit stays with the SteuerboxHub.": "Das NRG-Stack EMS schaltet die Wärmepumpe nur, wenn hier nicht „ein anderes System“ eingestellt ist. Es nutzt zunächst nur den Zusatzlauf bei PV-Überschuss; die §-14a-Grenze bleibt beim SteuerboxHub.",
+            "• 🎛️ The NRG-Stack EMS can now use the heat pump: optional run, its power and the power limit are part of the heat pump contract (version 1.18). New setting “Who controls this heat pump?” - with “another system” the EMS stays out.": "• 🎛️ Das NRG-Stack EMS kann die Wärmepumpe jetzt nutzen: Zusatzlauf, seine Leistung und die Leistungsgrenze stehen im Wärmepumpen-Vertrag (Version 1.18). Neue Einstellung „Wer steuert diese Wärmepumpe?“ - bei „ein anderes System“ hält sich das EMS heraus."
         }
     }
 }
