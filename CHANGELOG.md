@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0 (Build 8, 09.11.2026)
+
+- Leistungsbegrenzung (LPC, Energy Guard) mit LoadControl- und DeviceConfiguration-Client auf einer eigenen
+  GridGuard-Entität wie evcc (Kind-Schnittstelle 1.3, Gateway 0.7.0). Messwerte, OHPCF und Warmwasser bleiben
+  auf der CEM-Entität. Mit älterem Gateway wird wie bisher alles auf einer Entität angemeldet.
+
 ## 0.4.1 (Build 7, 09.11.2026)
 
 - Behoben: Ob die Wärmepumpe einen eigenen Zählerstand liefert, entscheidet jetzt ein tatsächlich empfangener Wert

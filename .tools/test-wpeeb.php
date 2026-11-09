@@ -239,8 +239,18 @@ $wp->parentId = 30002;
 $wp->Create();
 $wp->ApplyChanges();
 $anm = json_decode($gw->attrs['Anmeldungen'], true)['30003'] ?? [];
-pruefe(($anm['type'] ?? '') === 'CEM' && count($anm['features'] ?? []) === 5 && in_array('HeatPumpAppliance', $anm['remote']['entityTypes'] ?? [], true),
-    'Beim Gateway angemeldet: CEM mit 5 Client-Features (inkl. SmartEnergyManagementPs), Wärmepumpen-Entitäten');
+$typen = fn(array $l) => array_column($l, 'type');
+$gg = $anm['extraEntities'][0] ?? [];
+pruefe(($anm['type'] ?? '') === 'CEM' && $typen($anm['features'] ?? []) === ['ElectricalConnection', 'Measurement', 'SmartEnergyManagementPs']
+    && in_array('HeatPumpAppliance', $anm['remote']['entityTypes'] ?? [], true),
+    'Beim Gateway angemeldet: CEM mit Mess- und OHPCF-Clients, Wärmepumpen-Entitäten');
+pruefe(($gg['type'] ?? '') === 'GridGuard' && $typen($gg['features'] ?? []) === ['LoadControl', 'DeviceConfiguration']
+    && array_column($gg['useCases'] ?? [], 'name') === ['limitationOfPowerConsumption']
+    && !in_array('limitationOfPowerConsumption', array_column($anm['useCases'] ?? [], 'name'), true),
+    'LPC sitzt auf eigener GridGuard-Entität wie bei evcc (Gateway ab Schnittstelle 1.3)');
+$alt = (new ReflectionMethod(WPEEBUSHub::class, 'anmeldung'))->invoke(null, false);
+pruefe(count($alt['features']) === 5 && $alt['extraEntities'] === [] && $alt['useCases'][0]['name'] === 'limitationOfPowerConsumption',
+    'Älteres Gateway: Anmeldung wie bisher auf einer Entität');
 pruefe($wp->status === 203, 'Angemeldet, Wärmepumpe noch nicht da: Status 203');
 pruefe($wp->timers['Anmelden'] === 60000, 'Anmeldung wird jede Minute aufgefrischt');
 

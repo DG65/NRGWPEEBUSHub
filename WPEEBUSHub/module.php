@@ -171,21 +171,30 @@ class WPEEBUSHub extends IPSModule
         }
     }
 
-    /** Anmeldung beim Gateway: Energy Guard (LPC) und Monitoring Appliance (MPC) mit den nötigen Client-Features. */
-    private static function anmeldung(): array
+    /**
+     * Anmeldung beim Gateway: Monitoring Appliance (MPC, MDT) und CEM (OHPCF) auf der Haupt-Entität, Energy Guard (LPC)
+     * auf einer eigenen GridGuard-Entität wie evcc (Kind-Schnittstelle 1.3). Eine echte Vaillant (Forum 144877) setzt
+     * Grenzen nur von dort um und trennt sonst jede Minute bei ihrem Heartbeat. $gridGuard=false: alles auf einer
+     * Entität wie bis 0.4.1 (Gateway vor 0.7.0).
+     */
+    private static function anmeldung(bool $gridGuard = true): array
     {
         $client = function (string $typ): array {
             return ['type' => $typ, 'role' => 'client', 'functions' => []];
         };
+        $lpc = ['actor' => 'EnergyGuard', 'name' => 'limitationOfPowerConsumption', 'version' => '1.0.0', 'subRevision' => 'release', 'scenarios' => [1, 2, 3, 4]];
+        $haupt = [
+            ['actor' => 'MonitoringAppliance', 'name' => 'monitoringOfPowerConsumption', 'version' => '1.0.0', 'subRevision' => 'release', 'scenarios' => [1, 2, 3, 4, 5]],
+            ['actor' => 'CEM', 'name' => self::OHPCF_NAME, 'version' => '1.0.0', 'subRevision' => 'release', 'scenarios' => [1, 2]],
+            ['actor' => 'MonitoringAppliance', 'name' => self::MDT_NAME, 'version' => '1.0.0', 'subRevision' => 'release', 'scenarios' => [1]],
+        ];
+        $lpcFeatures = [$client('LoadControl'), $client('DeviceConfiguration')];
+        $hauptFeatures = [$client('ElectricalConnection'), $client('Measurement'), $client('SmartEnergyManagementPs')];
         return [
             'type' => 'CEM',
-            'useCases' => [
-                ['actor' => 'EnergyGuard', 'name' => 'limitationOfPowerConsumption', 'version' => '1.0.0', 'subRevision' => 'release', 'scenarios' => [1, 2, 3, 4]],
-                ['actor' => 'MonitoringAppliance', 'name' => 'monitoringOfPowerConsumption', 'version' => '1.0.0', 'subRevision' => 'release', 'scenarios' => [1, 2, 3, 4, 5]],
-                ['actor' => 'CEM', 'name' => self::OHPCF_NAME, 'version' => '1.0.0', 'subRevision' => 'release', 'scenarios' => [1, 2]],
-                ['actor' => 'MonitoringAppliance', 'name' => self::MDT_NAME, 'version' => '1.0.0', 'subRevision' => 'release', 'scenarios' => [1]],
-            ],
-            'features' => [$client('LoadControl'), $client('DeviceConfiguration'), $client('ElectricalConnection'), $client('Measurement'), $client('SmartEnergyManagementPs')],
+            'useCases' => $gridGuard ? $haupt : array_merge([$lpc], $haupt),
+            'features' => $gridGuard ? $hauptFeatures : array_merge($lpcFeatures, $hauptFeatures),
+            'extraEntities' => $gridGuard ? [['type' => 'GridGuard', 'useCases' => [$lpc], 'features' => $lpcFeatures]] : [],
             'remote' => [
                 // Der Warmwasserkreis (MDT) ist keine Wärmepumpen-Entität, wird aber mit abonniert.
                 'entityTypes' => array_merge(self::WP_ENTITAETEN, ['DHWCircuit']),
@@ -209,6 +218,10 @@ class WPEEBUSHub extends IPSModule
             return;
         }
         $r = $this->gateway(['Cmd' => 'Register', 'Entity' => self::anmeldung()]);
+        if (!empty($r['ok']) && version_compare((string)($r['interface'] ?? '1.0'), '1.3', '<')) {
+            // Gateway vor 0.7.0 kennt keine Zusatz-Entität: LPC wie bisher auf der Haupt-Entität anmelden.
+            $r = $this->gateway(['Cmd' => 'Register', 'Entity' => self::anmeldung(false)]);
+        }
         if (empty($r['ok'])) {
             $this->SendDebug('Gateway', 'Register: ' . json_encode($r), 0);
             $this->SetStatus(201);
