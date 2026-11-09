@@ -19,6 +19,14 @@ trait WPEEBFormular
             '• Hangs as a child instance on the NRG-Stack EEBUS gateway, which takes care of certificate, pairing and connection.',
             '• Delivers the heat pump contract of the NRG-Stack like the other heat pump modules, with measured power and energy.',
         ],
+        '0.3.0' => [
+            '• 📈 Energy: if the heat pump reports no meter reading (e.g. Vaillant), the module calculates it from the measured power (variable “Electrical energy consumed (calculated)”, marked as calculated in the contract).',
+            '• 🔗 Fits the NRG-Stack: power and energy use the shared profiles NRG.Watt/NRG.kWh like MeterHub, and the contract also carries the MeterHub fields (function, powerID, energyImportID) for the energy flow of the dashboard.',
+            '• 📈 New panel “Energy and archive”: one click switches on archiving of power and meter reading, which the heat pump monitor and the energy flow need. Nothing is switched on without your click.',
+            '• ☀️ Like evcc: while “Run optional compressor run” is on, every run the heat pump newly offers is scheduled immediately and again every 10 minutes (adjustable). Pausing has priority over aborting.',
+            '• 🎚️ Like evcc: if the heat pump offers its power limit anew (e.g. after a restart), the module sends the desired limit again until the heat pump confirms it.',
+            '• 🌡️ New: hot water temperature, if the heat pump reports it via EEBUS (use case MDT).',
+        ],
         '0.2.2' => [
             '• 💬 Feedback and questions now go to the forum thread for this module - the button in “Feedback” opens it.',
         ],

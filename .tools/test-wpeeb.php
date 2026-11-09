@@ -64,8 +64,8 @@ function IPS_GetInstance(int $id): array
 function IPS_GetConfiguration(int $id): string { return json_encode($GLOBALS['INST'][$id]->config); }
 function IPS_SetConfiguration(int $id, string $c): bool { $GLOBALS['INST'][$id]->config = array_merge($GLOBALS['INST'][$id]->config, json_decode($c, true)); return true; }
 function IPS_SetProperty(int $id, string $n, $v): bool { $GLOBALS['INST'][$id]->config[$n] = $v; return true; }
-function IPS_ApplyChanges(int $id): bool { $i = $GLOBALS['INST'][$id]; if (method_exists($i, 'anwenden')) { $i->anwenden(); } return true; }
-function IPS_GetInstanceListByModuleID(string $g): array { return []; }
+function IPS_ApplyChanges(int $id): bool { $i = $GLOBALS['INST'][$id] ?? null; if ($i !== null && method_exists($i, 'anwenden')) { $i->anwenden(); } return true; }
+function IPS_GetInstanceListByModuleID(string $g): array { return $g === '{43192F0B-135B-4CE7-A0A7-1475603F3060}' && $GLOBALS['ARCHIV'] > 0 ? [$GLOBALS['ARCHIV']] : []; }
 function IPS_GetLibrary(string $guid): array
 {
     $l = json_decode((string)file_get_contents(dirname(__DIR__) . '/library.json'), true);
@@ -76,6 +76,15 @@ $GLOBALS['PROFILE'] = [];
 function IPS_VariableProfileExists(string $n): bool { return isset($GLOBALS['PROFILE'][$n]); }
 function IPS_CreateVariableProfile(string $n, int $t): bool { $GLOBALS['PROFILE'][$n] = []; return true; }
 function IPS_SetVariableProfileAssociation(string $n, $w, string $text, string $icon, int $farbe): bool { $GLOBALS['PROFILE'][$n][$w] = $text; return true; }
+function IPS_SetVariableProfileDigits(string $n, int $d): bool { $GLOBALS['PROFILE'][$n]['_stellen'] = $d; return true; }
+function IPS_SetVariableProfileText(string $n, string $pre, string $suf): bool { $GLOBALS['PROFILE'][$n]['_suffix'] = $suf; return true; }
+function IPS_SetVariableProfileIcon(string $n, string $i): bool { return true; }
+// Archiv: $GLOBALS['ARCHIV'] = Archiv-ID (0 = keins), $GLOBALS['LOG'][vid] = [geloggt, Aggregation].
+$GLOBALS['ARCHIV'] = 0;
+$GLOBALS['LOG'] = [];
+function AC_GetLoggingStatus(int $a, int $v): bool { return $GLOBALS['LOG'][$v][0] ?? false; }
+function AC_SetLoggingStatus(int $a, int $v, bool $an): bool { $GLOBALS['LOG'][$v][0] = $an; return true; }
+function AC_SetAggregationType(int $a, int $v, int $t): bool { $GLOBALS['LOG'][$v][1] = $t; return true; }
 
 class IPSModule
 {
@@ -278,8 +287,25 @@ $sende(['Event' => 'data', 'function' => 'loadControlLimitListData', 'data' => [
 pruefe($wp->vars['Grenze'] === 4200.0 && $wp->vars['GrenzeAktiv'] === true, 'LPC: Bezugsgrenze (limitId 7, consume) 4200 W aktiv, Einspeisegrenze übergangen');
 
 $f = $wp->GetFunctions()[0];
-pruefe($f['Type'] === 'heatpump' && $f['contractVersion'] === '1.15' && $f['Measured'] === true && $f['PowerID'] === $wp->ids['Leistung']
-    && $f['EnergyID'] === $wp->ids['Energie'] && $f['reachable'] === true && $f['managedBy'] === 'wpeeb', 'Vertrag heatpump 1.15: gemessene Leistung und Energie, erreichbar');
+pruefe($f['Type'] === 'heatpump' && $f['contractVersion'] === '1.17' && $f['Measured'] === true && $f['PowerID'] === $wp->ids['Leistung']
+    && $f['EnergyID'] === $wp->ids['Energie'] && $f['energyMeasured'] === true && $f['reachable'] === true && $f['managedBy'] === 'wpeeb', 'Vertrag heatpump 1.17: gemessene Leistung und Energie der Wärmepumpe, erreichbar');
+pruefe($f['function'] === 'heatpump' && $f['powerID'] === $wp->ids['Leistung'] && $f['energyImportID'] === $wp->ids['Energie'] && $f['energyExportID'] === 0
+    && $f['energyKind'] === 'counter' && $f['instanceID'] === 30003 && $f['label'] !== '', 'Vertrag: dieselben Felder in MeterHub-Form (function/powerID/energyImportID) für den Energiefluss');
+pruefe(($GLOBALS['PROFILE']['NRG.Watt']['_suffix'] ?? '') === ' W' && ($GLOBALS['PROFILE']['NRG.kWh']['_stellen'] ?? -1) === 1, 'Gemeinsame Profile NRG.Watt/NRG.kWh wie MeterHub angelegt');
+// Hochgerechneter Zählerstand (rein): Treppenkurve, Lücken nicht überbrückt, unplausible Werte ignoriert.
+[$k, $z] = WPEEBUSHub::energieRechnen([], 1000, 2000.0, true, true);
+pruefe($k === 0.0 && $z === ['t' => 1000, 'p' => 2000.0], 'Hochrechnung: erster Wert startet nur');
+[$k, $z] = WPEEBUSHub::energieRechnen($z, 1060, null, true, true);
+pruefe(abs($k - 2000 * 60 / 3600000) < 1e-9 && $z['p'] === 2000.0, 'Hochrechnung: Takt ohne neue Meldung zählt den letzten Wert weiter (60 s × 2 kW)');
+[$k, $z] = WPEEBUSHub::energieRechnen($z, 1120, 500.0, true, true);
+pruefe(abs($k - 2000 * 60 / 3600000) < 1e-9 && $z['p'] === 500.0, 'Hochrechnung: neue Leistung gilt erst ab jetzt (Treppenkurve)');
+[$k, $z2] = WPEEBUSHub::energieRechnen($z, 1120 + 3600, null, true, true);
+pruefe($k === 0.0 && $z2['t'] === 4720, 'Hochrechnung: Lücke über 10 min wird nicht überbrückt');
+[$k, $z3] = WPEEBUSHub::energieRechnen($z, 1180, 5.0e7, true, true);
+pruefe(abs($k - 500 * 60 / 3600000) < 1e-9 && $z3['p'] === 500.0, 'Hochrechnung: unplausibler Wert (50 MW) wird nicht übernommen');
+[$k, $z4] = WPEEBUSHub::energieRechnen($z, 1180, null, false, true);
+pruefe($k > 0 && $z4 === [], 'Hochrechnung: bei Trennung bis jetzt zählen, dann aufhören');
+
 $st = json_decode($wp->GetState(), true);
 pruefe($st['lpc'] === true && $st['mpc'] === true && $st['entity'] === [1], 'GetState: LPC und MPC vorhanden');
 
@@ -315,12 +341,73 @@ pruefe($wp->SetPowerLimit(3000, 600) === false && strpos(end($wp->log), 'not con
 $sende(['Event' => 'result', 'msgCounter' => 9, 'function' => 'loadControlLimitListData', 'errorNumber' => 7, 'description' => 'write not allowed']);
 pruefe(strpos(end($wp->log), 'abgelehnt') !== false, 'Abgelehnter Schreibbefehl wird gemeldet');
 
+// evcc-Regeln OHPCF: Ein/Aus-Wunsch, Sofortreaktion auf ein neues Angebot, Reboost-Timer, Testknöpfe setzen den Wunsch.
+$wp->log = [];
+$wp->SetOptionalRun(true);
+pruefe($wp->attrs['OhpcfWunsch'] === true && $wp->timers['Reboost'] === 600000, 'Optionaler Lauf an: Wunsch gemerkt, Reboost alle 10 min');
+$wp->log = [];
+$sende(['Event' => 'data', 'entity' => [2], 'function' => 'smartEnergyManagementPsData', 'data' => $ohpcf('inactive')]);
+pruefe(strpos(implode("\n", $wp->log), 'nicht gesendet') !== false, 'Neues Angebot bei „Ein“: sofort einplanen versucht (evcc #31549; Gateway ohne Verbindung lehnt ab)');
+$wp->log = [];
+$sende(['Event' => 'data', 'entity' => [2], 'function' => 'smartEnergyManagementPsData', 'data' => $ohpcf('running')]);
+pruefe($wp->log === [], 'Läuft schon: nichts gesendet (nur bei Zustandswechsel)');
+$wp->OptionalTesten('abort');
+pruefe($wp->attrs['OhpcfWunsch'] === false && $wp->timers['Reboost'] === 0, 'Testknopf „Abbrechen“ schaltet den Wunsch aus, kein Reboost');
+$wp->log = [];
+$sende(['Event' => 'data', 'entity' => [2], 'function' => 'smartEnergyManagementPsData', 'data' => $ohpcf('inactive')]);
+pruefe($wp->log === [], 'Wunsch aus: ein neues Angebot wird nicht eingeplant');
+
+// [LPC-913]: Gewünschte Grenze an eine neu erschienene Grenze erneut senden, bis zur Annahme.
+$wp->SetPowerLimit(3500, 0);
+pruefe((json_decode($wp->attrs['GrenzeWunsch'], true)['watt'] ?? 0) == 3500, 'Grenze 3500 W als Wunsch gemerkt');
+$sende(['Event' => 'data', 'function' => 'loadControlLimitDescriptionListData', 'data' => ['loadControlLimitDescriptionData' => [
+    ['limitId' => 9, 'limitDirection' => 'consume', 'scopeType' => 'activePowerLimit']]]]);
+pruefe(isset(json_decode($wp->attrs['GrenzeBestaetigung'], true)['seit']) && $wp->timers['GrenzeBestaetigen'] === 1000, 'Neue Grenze erschienen: Wunsch erneut gesendet, nächster Versuch in 1 s');
+$wp->GrenzeBestaetigen();
+pruefe($wp->timers['GrenzeBestaetigen'] === 2000, 'Wiederholung mit wachsender Wartezeit (2 s)');
+$sende(['Event' => 'result', 'msgCounter' => 11, 'function' => 'loadControlLimitListData', 'errorNumber' => 0]);
+pruefe($wp->attrs['GrenzeBestaetigung'] === '{}' && $wp->timers['GrenzeBestaetigen'] === 0, 'Grenze angenommen: Wiederholung beendet');
+
+// MDT: Warmwassertemperatur vom Warmwasserkreis, getrennt von den Messwerten der Wärmepumpe.
+$sende(['Event' => 'remoteEntity', 'state' => 'added', 'entity' => [4], 'type' => 'DHWCircuit', 'features' => [['type' => 'Measurement']]]);
+$sende(['Event' => 'data', 'entity' => [4], 'function' => 'measurementDescriptionListData', 'data' => ['measurementDescriptionData' => [
+    ['measurementId' => 0, 'measurementType' => 'temperature', 'unit' => 'degC', 'scopeType' => 'dhwTemperature']]]]);
+$leistungVorher = $wp->vars['Leistung'];
+$sende(['Event' => 'data', 'entity' => [4], 'function' => 'measurementListData', 'data' => ['measurementData' => [['measurementId' => 0, 'value' => ['number' => 525, 'scale' => -1]]]]]);
+pruefe(($wp->vars['Warmwasser'] ?? null) === 52.5 && $wp->vars['Leistung'] === $leistungVorher && $wp->GetFunctions()[0]['dhwTempID'] === $wp->ids['Warmwasser'],
+    'MDT: Warmwasser 52,5 °C (eigene Entität, Messwert-ID 0 stört die Leistung nicht), im Vertrag als dhwTempID');
+$anm = json_decode($gw->attrs['Anmeldungen'], true)['30003'] ?? [];
+pruefe(in_array('monitoringOfDhwTemperature', array_column($anm['useCases'] ?? [], 'name'), true) && in_array('DHWCircuit', $anm['remote']['entityTypes'] ?? [], true),
+    'Angemeldet mit MDT, Warmwasserkreis wird mit abonniert');
+
+// Wärmepumpe ohne eigenen Zählerstand (wie die Vaillant VR940f, Thread 144877 #10): Zählerstand hochrechnen.
+$sende(['Event' => 'data', 'function' => 'measurementDescriptionListData', 'data' => ['measurementDescriptionData' => [
+    ['measurementId' => 0, 'measurementType' => 'power', 'unit' => 'W', 'scopeType' => 'acPowerTotal']]]]);
+$f = $wp->GetFunctions()[0];
+pruefe($f['EnergyID'] === $wp->ids['EnergieHochgerechnet'] && $f['energyImportID'] === $f['EnergyID'] && $f['energyMeasured'] === false && $f['Measured'] === true,
+    'Ohne Zählerstand der Wärmepumpe: Vertrag meldet den hochgerechneten (energyMeasured=false), Leistung bleibt gemessen');
+$wp->attrs['EnergieRechnung'] = json_encode(['t' => time() - 120, 'p' => 3000.0]);
+$wp->vars['EnergieHochgerechnet'] = 10.0;
+$wp->EnergieTakt();
+pruefe(abs($wp->vars['EnergieHochgerechnet'] - 10.1) < 0.002, 'Takt: 2 min × 3 kW = 0,1 kWh aufaddiert');
+$sende(['Event' => 'data', 'function' => 'measurementListData', 'data' => ['measurementData' => [['measurementId' => 0, 'value' => ['number' => 1880, 'scale' => 0]]]]]);
+pruefe((float)json_decode($wp->attrs['EnergieRechnung'], true)['p'] === 1880.0, 'Neue Leistung 1880 W gilt ab jetzt für die Hochrechnung');
+// Archivierung: nur auf Klick, Leistung als Standard, Zählerstand als Zähler.
+$GLOBALS['ARCHIV'] = 99001;
+$html = formular($wp);
+pruefe(strpos($html, 'Archivierung für diese Variablen einschalten') !== false && ($GLOBALS['LOG'][$wp->ids['Leistung']][0] ?? false) === false, 'Archiv fehlt: Knopf im Formular, nichts von selbst eingeschaltet');
+$antwort = $wp->ArchivierungEinschalten();
+pruefe(($GLOBALS['LOG'][$wp->ids['Leistung']] ?? []) === [true, 0] && ($GLOBALS['LOG'][$wp->ids['EnergieHochgerechnet']] ?? []) === [true, 1] && strpos($antwort, '2') !== false,
+    'Knopf: Leistung (Standard) und hochgerechneter Zählerstand (Zähler) archiviert');
+pruefe(strpos(formular($wp), 'Leistung und Zählerstand werden archiviert') !== false, 'Danach: Formular bestätigt die Archivierung');
+$GLOBALS['ARCHIV'] = 0;
+
 $html = formular($wp);
 pruefe(strpos($html, 'Wozu dieses Modul') !== false && strpos($html, 'Über dieses Modul') !== false && strpos($html, 'Formular: Aufbau') !== false, 'Formular: Rahmen nach Konvention (Zweck, Aufbau, Über dieses Modul)');
 pruefe(strpos($html, 'Wärmepumpe verbunden: HeatPumpAppliance') !== false && strpos($html, 'Leistungsbegrenzung (LPC): vorhanden') !== false
     && strpos($html, 'PV-Überschuss (OHPCF): vorhanden') !== false, 'Formular: Verbindung und Anwendungsfälle (LPC, MPC, OHPCF) sichtbar');
 pruefe(strpos($html, 'Optionaler Lauf: angeboten, pausierbar: ja, abbrechbar: ja, Mindestlauf PT2M') !== false && strpos($html, 'WPEEB_OptionalTesten') !== false, 'Formular: OHPCF-Angebot und Testknöpfe');
-pruefe(strpos($html, 'abgelehnt (Fehler 7') !== false, 'Formular: letzte Antwort der Wärmepumpe sichtbar');
+pruefe(strpos($html, 'Letzte Antwort der Wärmepumpe') !== false && strpos($html, 'angenommen') !== false, 'Formular: letzte Antwort der Wärmepumpe sichtbar (zuletzt angenommen)');
 $aktionen = json_decode($wp->GetConfigurationForm(), true)['actions'];
 pruefe(strpos(json_encode($aktionen), 'WPEEB_GrenzeTesten') !== false, 'Grenze testen steht im Aktionsbereich');
 

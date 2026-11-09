@@ -1,7 +1,7 @@
 # NRG-Stack WPEEBUSHub
 
 [![Symcon](https://img.shields.io/badge/Symcon-PHP%20module-red.svg)](https://www.symcon.de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/)
-[![Module version](https://img.shields.io/badge/Module%20version-0.2.2-blue.svg)](library.json)
+[![Module version](https://img.shields.io/badge/Module%20version-0.3.0-blue.svg)](library.json)
 [![Symcon version](https://img.shields.io/badge/Symcon%20version-9.0%2B-green.svg)](https://www.symcon.de)
 [![License](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-lightgrey.svg)](LICENSE)
 [![PayPal](https://img.shields.io/badge/PayPal-Donate-blue.svg)](https://paypal.me/DietmarGureth)
@@ -13,8 +13,8 @@ case MPC), limits the power consumption (LPC) and starts an optional compressor 
 (OHPCF). The connection itself (certificate, pairing,
 encryption) is handled by the **NRG-Stack EEBUS gateway**, to which this instance is attached as a child.
 
-> Version 0.2.0: tested against a simulated heat pump (eebus-go `evse`, extended with measurements and a
-> compressor with OHPCF). Not tested with a real heat pump.
+> Version 0.3.0: tested against a simulated heat pump (eebus-go) and on a real Vaillant
+> (power and optional compressor run confirmed, gateway 0.6.2 or newer).
 
 ## Which heat pumps?
 
@@ -47,6 +47,7 @@ very welcome.
 | `Erreichbar` | Heat pump connected via EEBUS |
 | `Leistung` | Electrical power in W (measured by the heat pump) |
 | `Energie` | Electrical energy consumed in kWh |
+| `EnergieHochgerechnet` | Meter reading in kWh, calculated from the measured power if the heat pump reports none (e.g. Vaillant) |
 | `Grenze` | Power limit in W (switchable; shows the value confirmed by the heat pump) |
 | `GrenzeAktiv` | Power limit active (switchable) |
 | `Ausfallgrenze` | Limit the heat pump applies without a heartbeat of the energy management |
@@ -54,6 +55,21 @@ very welcome.
 | `OhpcfZustand` | Optional compressor run: 0 not offered, 1 offered, 2 scheduled, 3 running, 4 paused, 5 completed |
 | `OhpcfLauf` | Run the optional run (switchable: on = start/resume, off = pause/abort) |
 | `OhpcfLeistung`, `OhpcfLeistungMax` | Expected and maximum power of the optional run in W |
+| `Warmwasser` | Hot water temperature in °C, only if the heat pump reports it via EEBUS (MDT) |
+
+## Behaviour like evcc
+
+- Optional compressor run: on/off. While on, every run the heat pump newly offers is scheduled immediately
+  and again every “Reschedule offered runs every” minutes (default 10). Off pauses if the heat pump allows
+  it, otherwise aborts.
+- If the heat pump offers its power limit anew, the module sends the last desired limit again until it is
+  confirmed (at most 50 s).
+
+## In the NRG-Stack
+
+Power and meter reading use the shared profiles `NRG.Watt`/`NRG.kWh` like MeterHub. For the heat pump
+monitor and the energy flow of the NRG-Stack dashboard to show the history, both must be archived: one
+click under “Energy and archive” in the form is enough. The module never switches archiving on by itself.
 
 ## Functions
 
@@ -64,7 +80,7 @@ very welcome.
 | `WPEEB_SetOptionalRun(int $id, bool $Run)` | bool: optional run on (now) or off (pause, otherwise abort) |
 | `WPEEB_StartOptionalRun(int $id, int $DelaySeconds)` | bool: schedule the offered run |
 | `WPEEB_PauseOptionalRun` / `WPEEB_ResumeOptionalRun` / `WPEEB_AbortOptionalRun` (`int $id`) | bool |
-| `WPEEB_GetFunctions(int $id)` | NRG-Stack heat pump contract (`Type` `heatpump`, version 1.15), measured power/energy |
+| `WPEEB_GetFunctions(int $id)` | NRG-Stack heat pump contract (`Type` `heatpump`, version 1.17), measured power/energy |
 | `WPEEB_GetState(int $id)` | JSON: state for diagnosis |
 
 The limit is a request: the heat pump decides itself how it complies. Whether it accepted it is shown

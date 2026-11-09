@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.3.0 (Build 5, 09.11.2026)
+
+- Neu: Hochgerechneter Zählerstand `EnergieHochgerechnet` (NRG.kWh), wenn die Wärmepumpe keinen eigenen
+  liefert (MPC ohne `acEnergyConsumed`, z. B. Vaillant VR940f, Thread 144877 #10). Treppenkurve (EEBUS
+  meldet nur Änderungen), Takt 60 s, Lücken über 10 min werden nicht überbrückt, Werte über 1 MW ignoriert
+  (Muster MeterHub CalculatedEnergy).
+- Vertrag `heatpump` 1.17 (additiv): `EnergyID` zeigt auf den Zählerstand der Wärmepumpe oder den
+  hochgerechneten, `energyMeasured` (false = hochgerechnet, wie MeterHub 1.3), dazu die MeterHub-Felder
+  `function` `heatpump`, `label`, `instanceID`, `powerID`, `energyImportID`, `energyExportID`, `energyKind`
+  `counter`, `measured` für den Energiefluss (+ = Verbrauch).
+- Profile: Leistungen `NRG.Watt`, Energie `NRG.kWh` (gemeinsame Verbund-Profile wie MeterHub) statt
+  `~Watt`/`~Electricity`.
+- Neu: Bereich „Energie und Archiv“ mit Knopf zum Einschalten der Archivierung von Leistung (Standard) und
+  Zählerstand (Zähler) - nur auf Klick (Store-Checkliste 19, wie MeterHubVirtual).
+- evcc-Parität OHPCF (charger/eebus-ohpcf.go): `WPEEB_SetOptionalRun` ist ein Ein/Aus-Wunsch
+  (`OhpcfWunsch`); bei „Ein“ wird ein neu angebotener Lauf sofort eingeplant (evcc #31549) und alle
+  `ReboostMinuten` (Standard 10, 0 = aus) erneut; gesendet wird nur bei Zustandswechsel; Aus = pausieren, wenn
+  erlaubt, sonst abbrechen, wenn erlaubt. Testknöpfe setzen den Wunsch mit.
+- [LPC-913] wie evcc AssertLimit: die zuletzt gewünschte Grenze (`GrenzeWunsch`) wird an eine neu erschienene
+  Grenze erneut gesendet, Wartezeit 1-2-4-8-16 s, höchstens 50 s, bis ein `result` ohne Fehler kommt.
+- Neu: MDT (Monitoring of DHW Temperature) als Monitoring Appliance; Warmwasserkreis (`DHWCircuit`) wird mit
+  abonniert, Daten nach Entität getrennt; Variable `Warmwasser` (NRG.Celsius) entsteht erst mit dem ersten Wert,
+  im Vertrag `dhwTempID`.
+
 ## 0.2.2 (Build 4, 06.11.2026)
 
 - Rückmeldungen: Der Knopf im Formular führt jetzt zum Forum-Thread des Moduls statt zu GitHub.

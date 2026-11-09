@@ -1,7 +1,7 @@
 # NRG-Stack WPEEBUSHub
 
 [![Symcon](https://img.shields.io/badge/Symcon-PHPModul-red.svg)](https://www.symcon.de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/)
-[![Modul Version](https://img.shields.io/badge/Modul%20Version-0.2.2-blue.svg)](library.json)
+[![Modul Version](https://img.shields.io/badge/Modul%20Version-0.3.0-blue.svg)](library.json)
 [![Symcon Version](https://img.shields.io/badge/Symcon%20Version-9.0%2B-green.svg)](https://www.symcon.de)
 [![License](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-lightgrey.svg)](LICENSE)
 [![PayPal](https://img.shields.io/badge/PayPal-Spenden-blue.svg)](https://paypal.me/DietmarGureth)
@@ -14,8 +14,8 @@ Verdichterlauf für PV-Überschuss starten (OHPCF). Die Verbindung selbst
 (Zertifikat, Kopplung, Verschlüsselung) übernimmt das **NRG-Stack EEBUS-Gateway**, an dem diese
 Instanz als Kind hängt.
 
-> Stand 0.2.0: geprüft gegen eine simulierte Wärmepumpe (eebus-go `evse`, erweitert um Messwerte und
-> einen Verdichter mit OHPCF). An keiner echten Wärmepumpe getestet.
+> Stand 0.3.0: geprüft gegen eine simulierte Wärmepumpe (eebus-go) und an einer echten Vaillant
+> (Leistung und optionaler Verdichterlauf bestätigt, Gateway ab 0.6.2).
 
 ## Welche Wärmepumpen?
 
@@ -49,7 +49,8 @@ mit echten Geräten sind sehr willkommen.
 |---|---|
 | `Erreichbar` | Wärmepumpe über EEBUS verbunden |
 | `Leistung` | Elektrische Leistung in W (gemessen von der Wärmepumpe) |
-| `Energie` | Bezogene elektrische Energie in kWh |
+| `Energie` | Bezogene elektrische Energie in kWh (Zählerstand der Wärmepumpe, falls sie einen meldet) |
+| `EnergieHochgerechnet` | Zählerstand in kWh, aus der gemessenen Leistung hochgerechnet, wenn die Wärmepumpe keinen meldet (z. B. Vaillant) |
 | `Grenze` | Leistungsgrenze in W (schaltbar; zeigt den von der Wärmepumpe bestätigten Wert) |
 | `GrenzeAktiv` | Leistungsgrenze aktiv (schaltbar) |
 | `Ausfallgrenze` | Grenze, die die Wärmepumpe ohne Lebenszeichen des Energiemanagements anwendet |
@@ -57,6 +58,22 @@ mit echten Geräten sind sehr willkommen.
 | `OhpcfZustand` | Optionaler Verdichterlauf: 0 nicht angeboten, 1 angeboten, 2 eingeplant, 3 läuft, 4 pausiert, 5 beendet |
 | `OhpcfLauf` | Optionalen Lauf ausführen (schaltbar: an = starten/fortsetzen, aus = pausieren/abbrechen) |
 | `OhpcfLeistung`, `OhpcfLeistungMax` | Erwartete und höchste Leistung des optionalen Laufs in W |
+| `Warmwasser` | Warmwassertemperatur in °C, nur wenn die Wärmepumpe sie über EEBUS meldet (MDT) |
+
+## Verhalten wie evcc
+
+- Optionaler Verdichterlauf: Ein/Aus. Bei „Ein“ wird jeder neu angebotene Lauf sofort und erneut alle
+  „Angebotene Läufe erneut einplanen“-Minuten eingeplant (Standard 10). Bei „Aus“ wird pausiert, wenn die
+  Wärmepumpe das erlaubt, sonst abgebrochen.
+- Bietet die Wärmepumpe ihre Leistungsgrenze neu an, sendet das Modul die zuletzt gewünschte Grenze erneut,
+  bis sie bestätigt ist (höchstens 50 s).
+
+## Im NRG-Stack
+
+Leistung und Zählerstand nutzen die gemeinsamen Profile `NRG.Watt`/`NRG.kWh` wie MeterHub. Damit
+WP-Monitor und Energiefluss des NRG-Stack Dashboards den Verlauf zeigen können, müssen beide archiviert
+werden: Im Formular unter „Energie und Archiv“ genügt ein Klick. Das Modul schaltet die Archivierung
+nie von selbst ein.
 
 ## Funktionen
 
@@ -67,7 +84,7 @@ mit echten Geräten sind sehr willkommen.
 | `WPEEB_SetOptionalRun(int $id, bool $Run)` | bool: optionalen Lauf ein (sofort) oder aus (pausieren, sonst abbrechen) |
 | `WPEEB_StartOptionalRun(int $id, int $DelaySeconds)` | bool: angebotenen Lauf einplanen |
 | `WPEEB_PauseOptionalRun` / `WPEEB_ResumeOptionalRun` / `WPEEB_AbortOptionalRun` (`int $id`) | bool |
-| `WPEEB_GetFunctions(int $id)` | Wärmepumpen-Vertrag des NRG-Stack (`Type` `heatpump`, Version 1.15), gemessene Leistung/Energie |
+| `WPEEB_GetFunctions(int $id)` | Wärmepumpen-Vertrag des NRG-Stack (`Type` `heatpump`, Version 1.17): Leistung gemessen, Energie gemessen oder hochgerechnet (`energyMeasured`), zusätzlich die MeterHub-Felder für den Energiefluss |
 | `WPEEB_GetState(int $id)` | JSON: Zustand zur Diagnose |
 
 Die Grenze ist eine Vorgabe: Wie die Wärmepumpe sie einhält, entscheidet sie selbst. Ob sie sie

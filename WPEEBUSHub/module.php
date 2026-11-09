@@ -25,7 +25,20 @@ class WPEEBUSHub extends IPSModule
 
     private const GATEWAY_MODULE = '{32809AEC-3A90-455F-8FE4-188DF37D594F}';
     private const DATA_ZUM_GATEWAY = '{26D4DA14-6C0D-4686-AE00-D23234BAD90D}';
-    private const CONTRACT_VERSION = '1.15';
+    private const CONTRACT_VERSION = '1.17';
+    // Gemeinsame Variablenprofile des Verbunds (SUITE.md „Gemeinsame Variablenprofile“), wie MeterHub.
+    private const ARCHIV_MODUL = '{43192F0B-135B-4CE7-A0A7-1475603F3060}';
+    // Hochgerechneter Zählerstand (wie MeterHub, CalculatedEnergy): Takt und längste Lücke, die noch
+    // überbrückt wird. EEBUS meldet die Leistung nur bei Änderung, deshalb gilt der letzte Wert bis
+    // zur nächsten Meldung (Treppenkurve), nicht der Mittelwert zweier Abfragen.
+    private const ENERGIE_TAKT_MS = 60000;
+    private const ENERGIE_MAX_LUECKE_S = 600;
+    private const ENERGIE_MAX_W = 1000000.0;
+    // Monitoring of DHW Temperature (MDT, wie evcc/eebus-go ma/mdt): Warmwasserkreis als eigene Entität.
+    private const MDT_NAME = 'monitoringOfDhwTemperature';
+    // [LPC-913] wie evcc AssertLimit: gewünschte Grenze an eine neu erschienene Grenze erneut senden, mit
+    // wachsender Wartezeit, höchstens 50 s lang (die Spezifikation gibt dem Energy Guard 60 s).
+    private const GRENZE_BESTAETIGEN_MAX_S = 50;
     private const OHPCF_NAME = 'optimizationOfSelfConsumptionByHeatPumpCompressorFlexibility';
     // Zustand des optionalen Verdichterlaufs (Variable OhpcfZustand, Profil WPEEB.OhpcfState).
     private const OHPCF_ZUSTAENDE = ['inactive' => 1, 'scheduled' => 2, 'running' => 3, 'paused' => 4, 'scheduledPaused' => 4, 'completed' => 5, 'invalid' => 0];
@@ -49,6 +62,18 @@ class WPEEBUSHub extends IPSModule
         // Anmeldung beim Gateway regelmäßig auffrischen (z. B. nach Neuanlage des Gateways); das Gateway
         // vergleicht selbst und tut bei gleicher Anmeldung nichts.
         $this->RegisterTimer('Anmelden', 0, 'WPEEB_Anmelden($_IPS[\'TARGET\']);');
+        // Hochgerechneter Zählerstand, wenn die Wärmepumpe keinen eigenen liefert: {t, p} der letzten Leistung.
+        $this->RegisterAttributeString('EnergieRechnung', '{}');
+        // Gewünschter optionaler Lauf (Ein/Aus wie evcc): bei „Ein“ wird ein neu angebotener Lauf sofort und
+        // danach alle ReboostMinuten erneut eingeplant (evcc reboost, Standard 10 min, 0 = aus).
+        $this->RegisterAttributeBoolean('OhpcfWunsch', false);
+        $this->RegisterPropertyInteger('ReboostMinuten', 10);
+        $this->RegisterTimer('Reboost', 0, 'WPEEB_ReboostTakt($_IPS[\'TARGET\']);');
+        // Zuletzt gewünschte Grenze {watt, aktiv, bis} und laufende Bestätigung {seit, warte}.
+        $this->RegisterAttributeString('GrenzeWunsch', '{}');
+        $this->RegisterAttributeString('GrenzeBestaetigung', '{}');
+        $this->RegisterTimer('GrenzeBestaetigen', 0, 'WPEEB_GrenzeBestaetigen($_IPS[\'TARGET\']);');
+        $this->RegisterTimer('Energie', 0, 'WPEEB_EnergieTakt($_IPS[\'TARGET\']);');
     }
 
     public function ApplyChanges()
@@ -59,17 +84,21 @@ class WPEEBUSHub extends IPSModule
             return;
         }
         $this->MaintainVariable('Erreichbar', $this->t('Reachable'), VARIABLETYPE_BOOLEAN, '', 1, true);
-        $this->MaintainVariable('Leistung', $this->t('Electrical power'), VARIABLETYPE_FLOAT, '~Watt', 2, true);
-        $this->MaintainVariable('Energie', $this->t('Electrical energy consumed'), VARIABLETYPE_FLOAT, '~Electricity', 3, true);
-        $this->MaintainVariable('Grenze', $this->t('Power limit'), VARIABLETYPE_FLOAT, '~Watt', 4, true);
-        $this->MaintainVariable('GrenzeAktiv', $this->t('Power limit active'), VARIABLETYPE_BOOLEAN, '~Switch', 5, true);
-        $this->MaintainVariable('Ausfallgrenze', $this->t('Failsafe power limit'), VARIABLETYPE_FLOAT, '~Watt', 6, true);
-        $this->MaintainVariable('Nennleistung', $this->t('Maximum power consumption'), VARIABLETYPE_FLOAT, '~Watt', 7, true);
+        // Leistung und Energie mit den gemeinsamen NRG-Profilen wie MeterHub (ab 0.3.0, vorher ~Watt/~Electricity).
+        $this->nrgProfil('NRG.Watt', ' W', 0);
+        $this->nrgProfil('NRG.kWh', ' kWh', 1);
+        $this->MaintainVariable('Leistung', $this->t('Electrical power'), VARIABLETYPE_FLOAT, 'NRG.Watt', 2, true);
+        $this->MaintainVariable('Energie', $this->t('Electrical energy consumed'), VARIABLETYPE_FLOAT, 'NRG.kWh', 3, true);
+        $this->MaintainVariable('EnergieHochgerechnet', $this->t('Electrical energy consumed (calculated)'), VARIABLETYPE_FLOAT, 'NRG.kWh', 4, true);
+        $this->MaintainVariable('Grenze', $this->t('Power limit'), VARIABLETYPE_FLOAT, 'NRG.Watt', 5, true);
+        $this->MaintainVariable('GrenzeAktiv', $this->t('Power limit active'), VARIABLETYPE_BOOLEAN, '~Switch', 6, true);
+        $this->MaintainVariable('Ausfallgrenze', $this->t('Failsafe power limit'), VARIABLETYPE_FLOAT, 'NRG.Watt', 7, true);
+        $this->MaintainVariable('Nennleistung', $this->t('Maximum power consumption'), VARIABLETYPE_FLOAT, 'NRG.Watt', 8, true);
         $this->profileSicherstellen();
-        $this->MaintainVariable('OhpcfZustand', $this->t('Optional compressor run'), VARIABLETYPE_INTEGER, 'WPEEB.OhpcfState', 8, true);
-        $this->MaintainVariable('OhpcfLauf', $this->t('Run optional compressor run'), VARIABLETYPE_BOOLEAN, '~Switch', 9, true);
-        $this->MaintainVariable('OhpcfLeistung', $this->t('Optional run: expected power'), VARIABLETYPE_FLOAT, '~Watt', 10, true);
-        $this->MaintainVariable('OhpcfLeistungMax', $this->t('Optional run: maximum power'), VARIABLETYPE_FLOAT, '~Watt', 11, true);
+        $this->MaintainVariable('OhpcfZustand', $this->t('Optional compressor run'), VARIABLETYPE_INTEGER, 'WPEEB.OhpcfState', 9, true);
+        $this->MaintainVariable('OhpcfLauf', $this->t('Run optional compressor run'), VARIABLETYPE_BOOLEAN, '~Switch', 10, true);
+        $this->MaintainVariable('OhpcfLeistung', $this->t('Optional run: expected power'), VARIABLETYPE_FLOAT, 'NRG.Watt', 11, true);
+        $this->MaintainVariable('OhpcfLeistungMax', $this->t('Optional run: maximum power'), VARIABLETYPE_FLOAT, 'NRG.Watt', 12, true);
         $this->EnableAction('Grenze');
         $this->EnableAction('GrenzeAktiv');
         $this->EnableAction('OhpcfLauf');
@@ -77,6 +106,8 @@ class WPEEBUSHub extends IPSModule
         $this->RegisterMessage($this->InstanceID, FM_CONNECT);
         $this->RegisterMessage($this->InstanceID, FM_DISCONNECT);
         $this->SetTimerInterval('Anmelden', 60000);
+        $this->SetTimerInterval('Energie', self::ENERGIE_TAKT_MS);
+        $this->reboostTimer();
         $this->Anmelden();
     }
 
@@ -147,10 +178,12 @@ class WPEEBUSHub extends IPSModule
                 ['actor' => 'EnergyGuard', 'name' => 'limitationOfPowerConsumption', 'version' => '1.0.0', 'subRevision' => 'release', 'scenarios' => [1, 2, 3, 4]],
                 ['actor' => 'MonitoringAppliance', 'name' => 'monitoringOfPowerConsumption', 'version' => '1.0.0', 'subRevision' => 'release', 'scenarios' => [1, 2, 3, 4, 5]],
                 ['actor' => 'CEM', 'name' => self::OHPCF_NAME, 'version' => '1.0.0', 'subRevision' => 'release', 'scenarios' => [1, 2]],
+                ['actor' => 'MonitoringAppliance', 'name' => self::MDT_NAME, 'version' => '1.0.0', 'subRevision' => 'release', 'scenarios' => [1]],
             ],
             'features' => [$client('LoadControl'), $client('DeviceConfiguration'), $client('ElectricalConnection'), $client('Measurement'), $client('SmartEnergyManagementPs')],
             'remote' => [
-                'entityTypes' => self::WP_ENTITAETEN,
+                // Der Warmwasserkreis (MDT) ist keine Wärmepumpen-Entität, wird aber mit abonniert.
+                'entityTypes' => array_merge(self::WP_ENTITAETEN, ['DHWCircuit']),
                 'features' => [
                     ['type' => 'LoadControl', 'subscribe' => true, 'bind' => true, 'read' => ['loadControlLimitDescriptionListData', 'loadControlLimitListData']],
                     ['type' => 'DeviceConfiguration', 'subscribe' => true, 'bind' => true, 'read' => ['deviceConfigurationKeyValueDescriptionListData', 'deviceConfigurationKeyValueListData']],
@@ -211,6 +244,10 @@ class WPEEBUSHub extends IPSModule
                     $this->entitaetPruefen($e);
                 } elseif ((array)($e['entity'] ?? []) == (array)($this->geraet()['entity'] ?? [])) {
                     $this->geraetVergessen();
+                } elseif ((array)($e['entity'] ?? []) == (array)($this->geraet()['dhwEntity'] ?? [-1])) {
+                    $g = $this->geraet();
+                    unset($g['dhwEntity'], $g['dhwMessung']);
+                    $this->WriteAttributeString('Geraet', (string)json_encode($g));
                 } elseif ((array)($e['entity'] ?? []) == (array)($this->geraet()['ohpcfEntity'] ?? [])) {
                     $g = $this->geraet();
                     unset($g['ohpcfEntity'], $g['ohpcf']);
@@ -220,7 +257,7 @@ class WPEEBUSHub extends IPSModule
                 $this->statusAktualisieren();
                 break;
             case 'data':
-                $this->datenAuswerten((string)($e['function'] ?? ''), (array)($e['data'] ?? []));
+                $this->datenAuswerten((string)($e['function'] ?? ''), (array)($e['data'] ?? []), isset($e['entity']) ? (array)$e['entity'] : null);
                 $this->WriteAttributeInteger('LastSeenAt', time());
                 break;
             case 'result':
@@ -228,6 +265,10 @@ class WPEEBUSHub extends IPSModule
                     'errorNumber' => (int)($e['errorNumber'] ?? 0), 'description' => (string)($e['description'] ?? '')]));
                 if ((int)($e['errorNumber'] ?? 0) !== 0) {
                     $this->LogMessage($this->t('The heat pump rejected the limit: error %s %s', (string)$e['errorNumber'], (string)($e['description'] ?? '')), KL_WARNING);
+                } elseif (($e['function'] ?? '') === 'loadControlLimitListData' && $this->ReadAttributeString('GrenzeBestaetigung') !== '{}') {
+                    // Grenze angenommen: Wiederholung beenden.
+                    $this->WriteAttributeString('GrenzeBestaetigung', '{}');
+                    $this->SetTimerInterval('GrenzeBestaetigen', 0);
                 }
                 break;
             case 'heartbeat':
@@ -242,6 +283,12 @@ class WPEEBUSHub extends IPSModule
     {
         $typen = array_column((array)($e['features'] ?? []), 'type');
         $typ = (string)($e['type'] ?? '');
+        if ($typ === 'DHWCircuit') {
+            if (in_array('Measurement', $typen, true)) {
+                $this->geraetAendern(['dhwEntity' => (array)$e['entity']]);
+            }
+            return;
+        }
         if (!in_array($typ, self::WP_ENTITAETEN, true)) {
             return;
         }
@@ -285,6 +332,8 @@ class WPEEBUSHub extends IPSModule
 
     private function geraetVergessen(): void
     {
+        // Bis zur Trennung noch hochrechnen, danach keine Lücke überbrücken.
+        $this->energieSchritt(null, true);
         if ($this->geraet() !== []) {
             $this->WriteAttributeString('Geraet', '{}');
         }
@@ -302,9 +351,13 @@ class WPEEBUSHub extends IPSModule
         return (float)$v['number'] * (10 ** (int)($v['scale'] ?? 0));
     }
 
-    private function datenAuswerten(string $fn, array $d): void
+    private function datenAuswerten(string $fn, array $d, ?array $ent = null): void
     {
         $g = $this->geraet();
+        if ($ent !== null && !empty($g['dhwEntity']) && $ent == $g['dhwEntity']) {
+            $this->warmwasserAuswerten($fn, $d);
+            return;
+        }
         switch ($fn) {
             case 'smartEnergyManagementPsData':
                 $this->ohpcfAuswerten($d);
@@ -313,8 +366,12 @@ class WPEEBUSHub extends IPSModule
                 // Grenze für den Bezug: Richtung consume, Wirkleistungsgrenze (wie eebus-go eg/lpc).
                 foreach ((array)($d['loadControlLimitDescriptionData'] ?? []) as $l) {
                     if (($l['limitDirection'] ?? '') === 'consume' && ($l['scopeType'] ?? '') === 'activePowerLimit') {
+                        $neu = !isset($g['limitId']) || (int)$g['limitId'] !== (int)$l['limitId'];
                         $this->geraetAendern(['limitId' => (int)$l['limitId']]);
                         $this->grenzeAusStand();
+                        if ($neu) {
+                            $this->grenzeBestaetigungStarten();
+                        }
                     }
                 }
                 break;
@@ -363,6 +420,7 @@ class WPEEBUSHub extends IPSModule
                     }
                     $id = (int)($md['measurementId'] ?? -1);
                     if ($id === (int)($m['acPowerTotal']['id'] ?? -2)) {
+                        $this->energieSchritt($w);
                         $this->wertSetzen('Leistung', $w);
                     } elseif ($id === (int)($m['acEnergyConsumed']['id'] ?? -2)) {
                         $einheit = strtolower((string)($m['acEnergyConsumed']['unit'] ?? 'Wh'));
@@ -405,6 +463,135 @@ class WPEEBUSHub extends IPSModule
         }
     }
 
+    /** Gemeinsames NRG-Profil anlegen, falls es noch fehlt (idempotent wie MeterHub ensureSharedProfile). */
+    private function nrgProfil(string $name, string $suffix, int $stellen): void
+    {
+        if (IPS_VariableProfileExists($name)) {
+            return;
+        }
+        IPS_CreateVariableProfile($name, VARIABLETYPE_FLOAT);
+        IPS_SetVariableProfileDigits($name, $stellen);
+        IPS_SetVariableProfileText($name, '', $suffix);
+        IPS_SetVariableProfileIcon($name, 'Electricity');
+    }
+
+    // ------------------------------------------------------------------
+    // Hochgerechneter Zählerstand
+    // ------------------------------------------------------------------
+
+    /** Liefert die Wärmepumpe selbst einen Zählerstand (MPC acEnergyConsumed)? */
+    private function energieVomGeraet(): bool
+    {
+        return isset($this->geraet()['messung']['acEnergyConsumed']);
+    }
+
+    /** Timer: Zählerstand auch ohne neue Leistungsmeldung fortschreiben (EEBUS meldet nur Änderungen). */
+    public function EnergieTakt(): void
+    {
+        $this->energieSchritt(null);
+    }
+
+    /**
+     * Zählerstand aus der Leistung hochrechnen (Treppenkurve: der letzte Wert gilt bis zur nächsten Meldung),
+     * nur solange die Wärmepumpe erreichbar ist und selbst keinen Zählerstand liefert. Lücken über
+     * ENERGIE_MAX_LUECKE_S (Symcon-Neustart, Verbindungsabbruch) werden nicht überbrückt - lieber etwas zu
+     * wenig als erfundener Verbrauch (wie MeterHub CalcEnergyStep).
+     * $neu: neue Leistung in W (null = unverändert), $ende: danach nicht weiterrechnen.
+     */
+    private function energieSchritt(?float $neu, bool $ende = false): void
+    {
+        $st = json_decode($this->ReadAttributeString('EnergieRechnung'), true) ?: [];
+        $jetzt = time();
+        $aktiv = !$this->energieVomGeraet() && (bool)@$this->GetValue('Erreichbar');
+        [$kwh, $st] = self::energieRechnen($st, $jetzt, $neu, $aktiv && !$ende ? true : false, $aktiv);
+        if ($kwh > 0) {
+            $this->SetValue('EnergieHochgerechnet', (float)$this->GetValue('EnergieHochgerechnet') + $kwh);
+        }
+        $this->WriteAttributeString('EnergieRechnung', (string)json_encode($st));
+    }
+
+    /**
+     * Ein Rechenschritt, rein (für den Prüfstand): [kWh zum Aufaddieren, neuer Stand].
+     * $weiter: danach weiterrechnen; $zaehlen: den abgelaufenen Abschnitt gutschreiben.
+     */
+    public static function energieRechnen(array $st, int $jetzt, ?float $neu, bool $weiter, bool $zaehlen): array
+    {
+        $kwh = 0.0;
+        if ($zaehlen && isset($st['t'], $st['p'])) {
+            $dt = $jetzt - (int)$st['t'];
+            if ($dt > 0 && $dt <= self::ENERGIE_MAX_LUECKE_S) {
+                $kwh = max(0.0, (float)$st['p']) * $dt / 3600000.0;
+            }
+        }
+        if (!$weiter) {
+            return [$kwh, []];
+        }
+        $p = $neu ?? (isset($st['p']) ? (float)$st['p'] : null);
+        if ($p === null || !is_finite($p) || $p > self::ENERGIE_MAX_W) {
+            // Ohne gültige Leistung (oder bei einem unplausiblen Wert) nicht weiterrechnen.
+            return [$kwh, $neu === null ? [] : $st + ['t' => $jetzt]];
+        }
+        return [$kwh, ['t' => $jetzt, 'p' => max(0.0, $p)]];
+    }
+
+    // ------------------------------------------------------------------
+    // Archivierung (nur auf Klick, Store-Checkliste 19, wie MeterHubVirtual)
+    // ------------------------------------------------------------------
+
+    private function archivID(): int
+    {
+        if (!function_exists('AC_GetLoggingStatus')) {
+            return 0;
+        }
+        $ids = IPS_GetInstanceListByModuleID(self::ARCHIV_MODUL);
+        return (int)($ids[0] ?? 0);
+    }
+
+    /** Variablen, die für Verlauf, WP-Monitor und Energiefluss archiviert sein sollten: [vid => Zählerstand?]. */
+    private function archivFehlt(): array
+    {
+        $ac = $this->archivID();
+        if ($ac <= 0) {
+            return [];
+        }
+        $fehlt = [];
+        foreach (['Leistung' => false, $this->energieIdent() => true] as $ident => $zaehler) {
+            $vid = (int)@$this->GetIDForIdent($ident);
+            if ($vid > 0 && !@AC_GetLoggingStatus($ac, $vid)) {
+                $fehlt[$vid] = $zaehler;
+            }
+        }
+        return $fehlt;
+    }
+
+    /** WPEEB_ArchivierungEinschalten($id): string — Archivierung für Leistung und Zählerstand einschalten (Knopf). */
+    public function ArchivierungEinschalten(): string
+    {
+        $ac = $this->archivID();
+        if ($ac <= 0) {
+            return '⛔ ' . $this->t('No archive instance found.');
+        }
+        $n = 0;
+        foreach ($this->archivFehlt() as $vid => $zaehler) {
+            AC_SetLoggingStatus($ac, $vid, true);
+            // Zählerstand als Zähler aggregieren (Verbrauch je Zeitraum), Leistung als Standard.
+            AC_SetAggregationType($ac, $vid, $zaehler ? 1 : 0);
+            $n++;
+        }
+        if ($n > 0) {
+            IPS_ApplyChanges($ac);
+        }
+        $this->UpdateFormField('ArchivPanel', 'visible', false);
+        return $n === 0 ? 'ℹ️ ' . $this->t('Nothing was missing - all variables are already archived.')
+            : '✅ ' . $this->t('Archiving enabled for %s variable(s).', (string)$n);
+    }
+
+    /** Ident der Energie-Variablen, die der Vertrag meldet: Zählerstand der Wärmepumpe oder hochgerechnet. */
+    private function energieIdent(): string
+    {
+        return $this->energieVomGeraet() ? 'Energie' : 'EnergieHochgerechnet';
+    }
+
     // ------------------------------------------------------------------
     // Grenze setzen
     // ------------------------------------------------------------------
@@ -427,15 +614,23 @@ class WPEEBUSHub extends IPSModule
         return $this->grenzeSchreiben(is_numeric($wert) ? (float)$wert : 0.0, false, 0, $g);
     }
 
-    private function grenzeSchreiben(float $watt, bool $aktiv, int $dauer, ?array $g = null): bool
+    private function grenzeSchreiben(float $watt, bool $aktiv, int $dauer, ?array $g = null, bool $merken = true): bool
     {
+        if ($merken) {
+            // Wunsch merken, damit er einer neu erschienenen Grenze erneut gesagt werden kann ([LPC-913]).
+            $this->WriteAttributeString('GrenzeWunsch', (string)json_encode(['watt' => $watt, 'aktiv' => $aktiv, 'bis' => $aktiv && $dauer > 0 ? time() + $dauer : 0]));
+        }
         $g = $g ?? $this->geraet();
         if (empty($g['entity']) || !isset($g['limitId'])) {
-            $this->LogMessage($this->t('Power limit not sent: the heat pump is not connected or offers no power limit (LPC).'), KL_WARNING);
+            if ($merken) {
+                $this->LogMessage($this->t('Power limit not sent: the heat pump is not connected or offers no power limit (LPC).'), KL_WARNING);
+            }
             return false;
         }
         if (isset($g['aenderbar']) && $g['aenderbar'] === false) {
-            $this->LogMessage($this->t('Power limit not sent: the heat pump currently does not allow changing it.'), KL_WARNING);
+            if ($merken) {
+                $this->LogMessage($this->t('Power limit not sent: the heat pump currently does not allow changing it.'), KL_WARNING);
+            }
             return false;
         }
         $eintrag = ['limitId' => (int)$g['limitId'], 'isLimitActive' => $aktiv, 'value' => ['number' => (int)round($watt), 'scale' => 0]];
@@ -445,7 +640,9 @@ class WPEEBUSHub extends IPSModule
         $r = $this->gateway(['Cmd' => 'Write', 'Entity' => $g['entity'], 'Feature' => 'LoadControl', 'Function' => 'loadControlLimitListData',
             'Data' => ['loadControlLimitData' => [$eintrag]]]);
         if (empty($r['ok'])) {
-            $this->LogMessage($this->t('Power limit not sent: %s', (string)($r['error'] ?? $this->t('no answer from the gateway'))), KL_WARNING);
+            if ($merken) {
+                $this->LogMessage($this->t('Power limit not sent: %s', (string)($r['error'] ?? $this->t('no answer from the gateway'))), KL_WARNING);
+            }
             return false;
         }
         $this->SendDebug('LPC', 'write ' . json_encode($eintrag) . ' msgCounter ' . ($r['msgCounter'] ?? '?'), 0);
@@ -527,6 +724,10 @@ class WPEEBUSHub extends IPSModule
         $this->geraetAendern(['ohpcf' => $o]);
         $this->wertSetzen('OhpcfZustand', self::OHPCF_ZUSTAENDE[$o['state']] ?? 0);
         $this->wertSetzen('OhpcfLauf', in_array($o['state'], ['running', 'scheduled'], true));
+        // evcc #31549: auf ein frisch angebotenes Einplanen/Fortsetzen sofort reagieren, nicht erst beim nächsten Reboost.
+        if ($this->ReadAttributeBoolean('OhpcfWunsch')) {
+            $this->ohpcfAngleichen(true);
+        }
     }
 
     /** Schreibbefehl an die Leistungsfolge (Startzeit oder Zustand), wie eebus-go cem/ohpcf. */
@@ -594,18 +795,123 @@ class WPEEBUSHub extends IPSModule
      */
     public function SetOptionalRun(bool $Run): bool
     {
+        // Ein/Aus wie evcc: der Wunsch bleibt bestehen; bei „Ein“ wird jeder neu angebotene Lauf eingeplant.
+        $this->WriteAttributeBoolean('OhpcfWunsch', $Run);
+        $this->reboostTimer();
+        return $this->ohpcfAngleichen($Run);
+    }
+
+    /**
+     * Lauf an den Wunsch angleichen, nur bei einem Zustandswechsel (evcc ohpcfControlAction): angeboten → einplanen,
+     * pausiert → fortsetzen; aus und läuft/eingeplant → pausieren, wenn erlaubt, sonst abbrechen, wenn erlaubt.
+     */
+    private function ohpcfAngleichen(bool $Run): bool
+    {
         $o = $this->geraet()['ohpcf'] ?? null;
         $state = is_array($o) ? $o['state'] : '';
         if ($Run) {
             if (in_array($state, ['paused', 'scheduledPaused'], true)) {
                 return $this->ResumeOptionalRun();
             }
-            return in_array($state, ['running', 'scheduled'], true) ? true : $this->StartOptionalRun(0);
+            if ($state === 'inactive') {
+                return $this->StartOptionalRun(0);
+            }
+            // Läuft schon, ist eingeplant oder gerade nicht angeboten: nichts zu tun.
+            return in_array($state, ['running', 'scheduled'], true);
         }
         if (!in_array($state, ['running', 'scheduled'], true)) {
             return true;
         }
-        return is_array($o) && $o['pausierbar'] ? $this->PauseOptionalRun() : $this->AbortOptionalRun();
+        if (is_array($o) && $o['pausierbar']) {
+            return $this->PauseOptionalRun();
+        }
+        if (is_array($o) && $o['abbrechbar']) {
+            return $this->AbortOptionalRun();
+        }
+        $this->LogMessage($this->t('Optional run cannot be stopped: the heat pump allows neither pausing nor aborting it.'), KL_WARNING);
+        return false;
+    }
+
+    /** Reboost-Timer nur, solange der optionale Lauf gewünscht ist. */
+    private function reboostTimer(): void
+    {
+        $min = max(0, $this->ReadPropertyInteger('ReboostMinuten'));
+        $this->SetTimerInterval('Reboost', $min > 0 && $this->ReadAttributeBoolean('OhpcfWunsch') ? $min * 60000 : 0);
+    }
+
+    /** Timer: einen neu angebotenen Lauf erneut einplanen (evcc reboost). */
+    public function ReboostTakt(): void
+    {
+        if ($this->ReadAttributeBoolean('OhpcfWunsch')) {
+            $this->ohpcfAngleichen(true);
+        } else {
+            $this->SetTimerInterval('Reboost', 0);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Grenze nach dem Erscheinen bestätigen ([LPC-913], evcc AssertLimit)
+    // ------------------------------------------------------------------
+
+    /** Gewünschte Grenze an eine neu erschienene Grenze senden und bis zur Annahme wiederholen. */
+    private function grenzeBestaetigungStarten(): void
+    {
+        $w = json_decode($this->ReadAttributeString('GrenzeWunsch'), true) ?: [];
+        if (!isset($w['watt']) || (!empty($w['bis']) && (int)$w['bis'] <= time())) {
+            return;
+        }
+        $this->WriteAttributeString('GrenzeBestaetigung', (string)json_encode(['seit' => time(), 'warte' => 1]));
+        $this->GrenzeBestaetigen();
+    }
+
+    /** Timer: gewünschte Grenze erneut senden, Wartezeit verdoppeln, nach 50 s aufgeben. */
+    public function GrenzeBestaetigen(): void
+    {
+        $b = json_decode($this->ReadAttributeString('GrenzeBestaetigung'), true) ?: [];
+        $w = json_decode($this->ReadAttributeString('GrenzeWunsch'), true) ?: [];
+        if (!isset($b['seit'], $w['watt']) || time() - (int)$b['seit'] > self::GRENZE_BESTAETIGEN_MAX_S) {
+            if (isset($b['seit'])) {
+                $this->LogMessage($this->t('The heat pump did not confirm the power limit within %s s.', (string)self::GRENZE_BESTAETIGEN_MAX_S), KL_WARNING);
+            }
+            $this->WriteAttributeString('GrenzeBestaetigung', '{}');
+            $this->SetTimerInterval('GrenzeBestaetigen', 0);
+            return;
+        }
+        $rest = empty($w['bis']) ? 0 : max(1, (int)$w['bis'] - time());
+        $this->grenzeSchreiben((float)$w['watt'], (bool)$w['aktiv'], $rest, null, false);
+        $warte = (int)$b['warte'];
+        $this->WriteAttributeString('GrenzeBestaetigung', (string)json_encode(['seit' => (int)$b['seit'], 'warte' => min(16, $warte * 2)]));
+        $this->SetTimerInterval('GrenzeBestaetigen', $warte * 1000);
+    }
+
+    // ------------------------------------------------------------------
+    // Warmwassertemperatur (MDT)
+    // ------------------------------------------------------------------
+
+    private function warmwasserAuswerten(string $fn, array $d): void
+    {
+        if ($fn === 'measurementDescriptionListData') {
+            foreach ((array)($d['measurementDescriptionData'] ?? []) as $md) {
+                if (($md['scopeType'] ?? '') === 'dhwTemperature') {
+                    $this->geraetAendern(['dhwMessung' => (int)$md['measurementId']]);
+                }
+            }
+            return;
+        }
+        if ($fn !== 'measurementListData') {
+            return;
+        }
+        $id = $this->geraet()['dhwMessung'] ?? null;
+        foreach ((array)($d['measurementData'] ?? []) as $md) {
+            if ($id !== null && (int)($md['measurementId'] ?? -1) === (int)$id && ($w = self::zahl($md['value'] ?? null)) !== null) {
+                if (@$this->GetIDForIdent('Warmwasser') === false) {
+                    // Erst anlegen, wenn die Wärmepumpe die Temperatur wirklich liefert (nur wenige tun das).
+                    $this->nrgProfil('NRG.Celsius', ' °C', 1);
+                    $this->MaintainVariable('Warmwasser', $this->t('Hot water temperature'), VARIABLETYPE_FLOAT, 'NRG.Celsius', 13, true);
+                }
+                $this->wertSetzen('Warmwasser', $w);
+            }
+        }
     }
 
     private static function zustandText(string $state): string
@@ -629,6 +935,10 @@ class WPEEBUSHub extends IPSModule
             default:
                 $ok = $this->AbortOptionalRun();
         }
+        // Wie „Optionalen Verdichterlauf ausführen“: Starten/Fortsetzen = Ein, Pausieren/Abbrechen = Aus (sonst plant der
+        // Reboost einen gerade abgebrochenen Lauf sofort wieder ein).
+        $this->WriteAttributeBoolean('OhpcfWunsch', in_array($Aktion, ['start', 'resume'], true));
+        $this->reboostTimer();
         return $ok ? '✅ ' . $this->t('Sent to the heat pump. Its answer appears in “Optional compressor run” in a few seconds.')
             : '⛔ ' . $this->t('Could not be sent. Details are in the message log.');
     }
@@ -637,22 +947,37 @@ class WPEEBUSHub extends IPSModule
     // Verbund-Vertrag
     // ------------------------------------------------------------------
 
-    /** WPEEB_GetFunctions($id): array — heatpump-Vertrag 1.15 wie WPModbusHub/WPHub/HeishaMon. */
+    /** WPEEB_GetFunctions($id): array — heatpump-Vertrag 1.17 wie WPModbusHub/WPHub/HeishaMon. */
     public function GetFunctions(): array
     {
         $id = function (string $ident): int {
             $v = @$this->GetIDForIdent($ident);
             return $v === false ? 0 : (int)$v;
         };
+        $energieGemessen = $this->energieVomGeraet();
+        $energieID = $id($this->energieIdent());
         return [[
             'contractVersion'      => self::CONTRACT_VERSION,
             'Type'                 => 'heatpump',
             'Caption'              => IPS_GetName($this->InstanceID),
             'PowerID'              => $id('Leistung'),
-            'EnergyID'             => $id('Energie'),
-            // Leistung und Energie misst die Wärmepumpe selbst (MPC).
+            // Kumulativer Zählerstand in kWh: der der Wärmepumpe (MPC) oder, wenn sie keinen liefert, der aus
+            // ihrer gemessenen Leistung hochgerechnete (energyMeasured=false, wie MeterHub 1.3).
+            'EnergyID'             => $energieID,
+            // Die Leistung misst die Wärmepumpe selbst (MPC).
             'Measured'             => true,
+            'energyMeasured'       => $energieGemessen,
             'unit'                 => 'W',
+            // Dieselben Felder in der Verbund-Form von MeterHub/ChargerHub (function/label/powerID/…), damit
+            // Energiefluss und Messmodule die Wärmepumpe ohne Sonderübersetzung lesen (+ = Verbrauch).
+            'function'             => 'heatpump',
+            'label'                => IPS_GetName($this->InstanceID),
+            'instanceID'           => $this->InstanceID,
+            'powerID'              => $id('Leistung'),
+            'energyImportID'       => $energieID,
+            'energyExportID'       => 0,
+            'energyKind'           => 'counter',
+            'measured'             => true,
             'reachable'            => (bool)@$this->GetValue('Erreichbar'),
             'outsideTempID'        => 0,
             'outdoorTemperatureID' => 0,
@@ -660,7 +985,7 @@ class WPEEBUSHub extends IPSModule
             'z1WaterTargetTempID'  => 0,
             'z2WaterTempID'        => 0,
             'z2WaterTargetTempID'  => 0,
-            'dhwTempID'            => 0,
+            'dhwTempID'            => $id('Warmwasser'),
             'dhwTargetTempID'      => 0,
             'mainInletTempID'      => 0,
             'mainOutletTempID'     => 0,
@@ -775,6 +1100,29 @@ class WPEEBUSHub extends IPSModule
             ],
         ];
 
-        return ['verbindung' => $verbindung, 'grenze' => $grenze, 'ohpcf' => $ohpcf];
+        // Energie und Archivierung: Woher der Zählerstand kommt, und ob Verlauf, WP-Monitor und Energiefluss
+        // auf archivierte Werte zugreifen können (Archivierung nur auf Klick, Store-Checkliste 19).
+        $fehlt = $this->archivFehlt();
+        $energie = [
+            'type' => 'ExpansionPanel', 'name' => 'ArchivPanel', 'bereich' => 'actions', 'expanded' => $fehlt !== [], 'caption' => '📈  Energy and archive',
+            'items' => array_values(array_filter([
+                ['type' => 'Label', 'caption' => $this->energieVomGeraet()
+                    ? self::fest('✅ The heat pump reports its own meter reading; it is used for the energy.')
+                    : self::fest('ℹ️ The heat pump reports no meter reading. The module calculates it from the measured power (variable “Electrical energy consumed (calculated)”).')],
+                $fehlt !== [] ? ['type' => 'Label', 'caption' => 'For the history, the heat pump monitor of the NRG-Stack dashboard and the energy flow, power and meter reading must be archived. The module does not switch archiving on by itself - that is your decision.'] : null,
+                $fehlt !== [] ? ['type' => 'Label', 'caption' => $this->t('Not archived yet: %s', implode(', ', array_map('IPS_GetName', array_keys($fehlt))))] : null,
+                $fehlt !== [] ? ['type' => 'Button', 'caption' => '📈  Enable archiving for these variables', 'onClick' => 'echo WPEEB_ArchivierungEinschalten($id);'] : null,
+                $fehlt === [] && $this->archivID() > 0 ? ['type' => 'Label', 'caption' => self::fest('✅ Power and meter reading are archived.')] : null,
+            ])),
+        ];
+
+        $einstellungen = [
+            'type' => 'ExpansionPanel', 'expanded' => false, 'caption' => '⚙️  PV surplus settings',
+            'items' => [
+                ['type' => 'Label', 'caption' => 'While “Run optional compressor run” is on, the module schedules every run the heat pump newly offers - immediately and again after this interval (like evcc “reboost”). 0 = only immediately.'],
+                ['type' => 'NumberSpinner', 'name' => 'ReboostMinuten', 'caption' => 'Reschedule offered runs every', 'suffix' => 'min', 'minimum' => 0, 'maximum' => 240],
+            ],
+        ];
+        return ['verbindung' => $verbindung, 'einstellungen' => $einstellungen, 'energie' => $energie, 'grenze' => $grenze, 'ohpcf' => $ohpcf];
     }
 }
