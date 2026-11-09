@@ -209,6 +209,18 @@ class WPEEBUSHub extends IPSModule
         ];
     }
 
+    /** Dauer als ISO-8601 in der Form von spine-go (PT14M23S statt PT863S), wie sie auch die Vaillant meldet. */
+    private static function isoDauer(int $s): string
+    {
+        $t = intdiv($s, 86400);
+        $s %= 86400;
+        $h = intdiv($s, 3600);
+        $m = intdiv($s % 3600, 60);
+        $sek = $s % 60;
+        $zeit = ($h > 0 ? $h . 'H' : '') . ($m > 0 ? $m . 'M' : '') . ($sek > 0 ? $sek . 'S' : '');
+        return 'P' . ($t > 0 ? $t . 'D' : '') . ($zeit !== '' ? 'T' . $zeit : ($t > 0 ? '' : 'T0S'));
+    }
+
     /** WPEEB_Anmelden($id) — beim Gateway anmelden (auch per Timer, gleiche Anmeldung ändert dort nichts). */
     public function Anmelden(): void
     {
@@ -678,7 +690,7 @@ class WPEEBUSHub extends IPSModule
         }
         $eintrag = ['limitId' => (int)$g['limitId'], 'isLimitActive' => $aktiv, 'value' => ['number' => (int)round($watt), 'scale' => 0]];
         if ($aktiv && $dauer > 0) {
-            $eintrag['timePeriod'] = ['endTime' => 'PT' . $dauer . 'S'];
+            $eintrag['timePeriod'] = ['endTime' => self::isoDauer($dauer)];
         }
         $r = $this->gateway(['Cmd' => 'Write', 'Entity' => $g['entity'], 'Feature' => 'LoadControl', 'Function' => 'loadControlLimitListData',
             'Data' => ['loadControlLimitData' => [$eintrag]]]);

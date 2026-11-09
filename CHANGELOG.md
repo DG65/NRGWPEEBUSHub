@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1 (Build 9, 09.11.2026)
+
+- Dauer einer befristeten Leistungsgrenze im Format von spine-go (`PT14M23S` statt `PT863S`), wie es auch die
+  Vaillant selbst meldet. Zusammen mit EEBUS-Gateway 0.7.1 (Feldreihenfolge) für Slummis Vaillant, die aktive
+  Grenzen bisher unbeantwortet ließ.
+
 ## 0.5.0 (Build 8, 09.11.2026)
 
 - Leistungsbegrenzung (LPC, Energy Guard) mit LoadControl- und DeviceConfiguration-Client auf einer eigenen

@@ -248,6 +248,9 @@ pruefe(($gg['type'] ?? '') === 'GridGuard' && $typen($gg['features'] ?? []) === 
     && array_column($gg['useCases'] ?? [], 'name') === ['limitationOfPowerConsumption']
     && !in_array('limitationOfPowerConsumption', array_column($anm['useCases'] ?? [], 'name'), true),
     'LPC sitzt auf eigener GridGuard-Entität wie bei evcc (Gateway ab Schnittstelle 1.3)');
+$iso = new ReflectionMethod(WPEEBUSHub::class, 'isoDauer');
+pruefe([$iso->invoke(null, 863), $iso->invoke(null, 900), $iso->invoke(null, 7200), $iso->invoke(null, 90061), $iso->invoke(null, 0)] === ['PT14M23S', 'PT15M', 'PT2H', 'P1DT1H1M1S', 'PT0S'],
+    'Grenzdauer im Format von spine-go (PT14M23S, PT15M, PT2H)');
 $alt = (new ReflectionMethod(WPEEBUSHub::class, 'anmeldung'))->invoke(null, false);
 pruefe(count($alt['features']) === 5 && $alt['extraEntities'] === [] && $alt['useCases'][0]['name'] === 'limitationOfPowerConsumption',
     'Älteres Gateway: Anmeldung wie bisher auf einer Entität');

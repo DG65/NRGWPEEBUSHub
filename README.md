@@ -1,7 +1,7 @@
 # NRG-Stack WPEEBUSHub
 
 [![Symcon](https://img.shields.io/badge/Symcon-PHPModul-red.svg)](https://www.symcon.de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/)
-[![Modul Version](https://img.shields.io/badge/Modul%20Version-0.5.0-blue.svg)](library.json)
+[![Modul Version](https://img.shields.io/badge/Modul%20Version-0.5.1-blue.svg)](library.json)
 [![Symcon Version](https://img.shields.io/badge/Symcon%20Version-9.0%2B-green.svg)](https://www.symcon.de)
 [![License](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-lightgrey.svg)](LICENSE)
 [![PayPal](https://img.shields.io/badge/PayPal-Spenden-blue.svg)](https://paypal.me/DietmarGureth)
@@ -14,7 +14,7 @@ Verdichterlauf für PV-Überschuss starten (OHPCF). Die Verbindung selbst
 (Zertifikat, Kopplung, Verschlüsselung) übernimmt das **NRG-Stack EEBUS-Gateway**, an dem diese
 Instanz als Kind hängt.
 
-> Stand 0.5.0: geprüft gegen eine simulierte Wärmepumpe (eebus-go) und an einer echten Vaillant
+> Stand 0.5.1: geprüft gegen eine simulierte Wärmepumpe (eebus-go) und an einer echten Vaillant
 > (Leistung, optionaler Verdichterlauf und Warmwassertemperatur bestätigt). Die Leistungsbegrenzung kommt
 > wie bei evcc von einem eigenen „Netzwächter“-Teil (GridGuard) des Gateways, dafür braucht es Gateway 0.7.0.
 

@@ -1,7 +1,7 @@
 # NRG-Stack WPEEBUSHub
 
 [![Symcon](https://img.shields.io/badge/Symcon-PHP%20module-red.svg)](https://www.symcon.de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/)
-[![Module version](https://img.shields.io/badge/Module%20version-0.5.0-blue.svg)](library.json)
+[![Module version](https://img.shields.io/badge/Module%20version-0.5.1-blue.svg)](library.json)
 [![Symcon version](https://img.shields.io/badge/Symcon%20version-9.0%2B-green.svg)](https://www.symcon.de)
 [![License](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-lightgrey.svg)](LICENSE)
 [![PayPal](https://img.shields.io/badge/PayPal-Donate-blue.svg)](https://paypal.me/DietmarGureth)
@@ -13,7 +13,7 @@ case MPC), limits the power consumption (LPC) and starts an optional compressor 
 (OHPCF). The connection itself (certificate, pairing,
 encryption) is handled by the **NRG-Stack EEBUS gateway**, to which this instance is attached as a child.
 
-> Version 0.5.0: tested against a simulated heat pump (eebus-go) and on a real Vaillant
+> Version 0.5.1: tested against a simulated heat pump (eebus-go) and on a real Vaillant
 > (power, optional compressor run and hot water temperature confirmed). As in evcc, power limitation is sent
 > from a separate grid guard part (GridGuard) of the gateway, which requires gateway 0.7.0.
 
