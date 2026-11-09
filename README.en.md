@@ -1,7 +1,7 @@
 # NRG-Stack WPEEBUSHub
 
 [![Symcon](https://img.shields.io/badge/Symcon-PHP%20module-red.svg)](https://www.symcon.de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/)
-[![Module version](https://img.shields.io/badge/Module%20version-0.4.0-blue.svg)](library.json)
+[![Module version](https://img.shields.io/badge/Module%20version-0.4.1-blue.svg)](library.json)
 [![Symcon version](https://img.shields.io/badge/Symcon%20version-9.0%2B-green.svg)](https://www.symcon.de)
 [![License](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-lightgrey.svg)](LICENSE)
 [![PayPal](https://img.shields.io/badge/PayPal-Donate-blue.svg)](https://paypal.me/DietmarGureth)
@@ -50,6 +50,7 @@ very welcome.
 | `EnergieHochgerechnet` | Meter reading in kWh, calculated from the measured power if the heat pump reports none (e.g. Vaillant) |
 | `Grenze` | Power limit in W (switchable; shows the value confirmed by the heat pump) |
 | `GrenzeAktiv` | Power limit active (switchable) |
+| `GrenzeBis` | End of a time-limited limit (0 = no end) |
 | `Ausfallgrenze` | Limit the heat pump applies without a heartbeat of the energy management |
 | `Nennleistung` | Maximum power consumption according to the heat pump |
 | `OhpcfZustand` | Optional compressor run: 0 not offered, 1 offered, 2 scheduled, 3 running, 4 paused, 5 completed |

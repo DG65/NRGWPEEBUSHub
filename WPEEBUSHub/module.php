@@ -96,6 +96,7 @@ class WPEEBUSHub extends IPSModule
         $this->MaintainVariable('EnergieHochgerechnet', $this->t('Electrical energy consumed (calculated)'), VARIABLETYPE_FLOAT, 'NRG.kWh', 4, true);
         $this->MaintainVariable('Grenze', $this->t('Power limit'), VARIABLETYPE_FLOAT, 'NRG.Watt', 5, true);
         $this->MaintainVariable('GrenzeAktiv', $this->t('Power limit active'), VARIABLETYPE_BOOLEAN, '~Switch', 6, true);
+        $this->MaintainVariable('GrenzeBis', $this->t('Power limit ends at'), VARIABLETYPE_INTEGER, '~UnixTimestamp', 6, true);
         $this->MaintainVariable('Ausfallgrenze', $this->t('Failsafe power limit'), VARIABLETYPE_FLOAT, 'NRG.Watt', 7, true);
         $this->MaintainVariable('Nennleistung', $this->t('Maximum power consumption'), VARIABLETYPE_FLOAT, 'NRG.Watt', 8, true);
         $this->profileSicherstellen();
@@ -346,6 +347,15 @@ class WPEEBUSHub extends IPSModule
         $this->statusAktualisieren();
     }
 
+    /** ISO-8601-Dauer (PnDTnHnMnS) in Sekunden, 0 bei unbekanntem Format. */
+    private static function dauerSekunden(string $iso): int
+    {
+        if (!preg_match('/^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/', $iso, $m)) {
+            return 0;
+        }
+        return (int)((int)($m[1] ?? 0) * 86400 + (int)($m[2] ?? 0) * 3600 + (int)($m[3] ?? 0) * 60 + (float)($m[4] ?? 0));
+    }
+
     /** Skalierte SPINE-Zahl {number, scale} als float. */
     private static function zahl($v): ?float
     {
@@ -413,7 +423,8 @@ class WPEEBUSHub extends IPSModule
                         $m[$scope] = ['id' => (int)$md['measurementId'], 'unit' => (string)($md['unit'] ?? '')];
                     }
                 }
-                $this->geraetAendern(['messung' => $m]);
+                // Ohne beschriebenen Zählerstand gilt auch ein früher gemeldeter nicht mehr.
+                $this->geraetAendern(['messung' => $m] + (isset($m['acEnergyConsumed']) ? [] : ['energieGemeldet' => false]));
                 break;
             case 'measurementListData':
                 $m = (array)($g['messung'] ?? []);
@@ -429,6 +440,9 @@ class WPEEBUSHub extends IPSModule
                     } elseif ($id === (int)($m['acEnergyConsumed']['id'] ?? -2)) {
                         $einheit = strtolower((string)($m['acEnergyConsumed']['unit'] ?? 'Wh'));
                         $this->wertSetzen('Energie', $einheit === 'kwh' ? $w : $w / 1000);
+                        if (empty($g['energieGemeldet'])) {
+                            $this->geraetAendern(['energieGemeldet' => true]);
+                        }
                     }
                 }
                 break;
@@ -454,6 +468,14 @@ class WPEEBUSHub extends IPSModule
                 $this->wertSetzen('Grenze', $w);
             }
             $this->wertSetzen('GrenzeAktiv', !empty($l['isLimitActive']));
+            // Ende einer befristeten Grenze (endTime ist eine Restdauer wie PT3600S oder ein Zeitpunkt), 0 = ohne Ende.
+            $ende = (string)($l['timePeriod']['endTime'] ?? '');
+            $bis = 0;
+            if (!empty($l['isLimitActive']) && $ende !== '') {
+                $sek = $ende[0] === 'P' ? self::dauerSekunden($ende) : 0;
+                $bis = $ende[0] === 'P' ? ($sek > 0 ? time() + $sek : 0) : (int)strtotime($ende);
+            }
+            $this->wertSetzen('GrenzeBis', $bis);
             $this->geraetAendern(['aenderbar' => (bool)($l['isLimitChangeable'] ?? true),
                 'ende' => (string)($l['timePeriod']['endTime'] ?? '')]);
         }
@@ -484,9 +506,13 @@ class WPEEBUSHub extends IPSModule
     // ------------------------------------------------------------------
 
     /** Liefert die Wärmepumpe selbst einen Zählerstand (MPC acEnergyConsumed)? */
+    /**
+     * Liefert die Wärmepumpe selbst einen Zählerstand? Erst, wenn tatsächlich ein Wert kam: Die Vaillant VR940f
+     * beschreibt acEnergyConsumed, schickt aber nie einen Wert (Forum 144877 #14).
+     */
     private function energieVomGeraet(): bool
     {
-        return isset($this->geraet()['messung']['acEnergyConsumed']);
+        return !empty($this->geraet()['energieGemeldet']);
     }
 
     /** Timer: Zählerstand auch ohne neue Leistungsmeldung fortschreiben (EEBUS meldet nur Änderungen). */

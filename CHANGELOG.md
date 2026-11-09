@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.1 (Build 7, 09.11.2026)
+
+- Behoben: Ob die Wärmepumpe einen eigenen Zählerstand liefert, entscheidet jetzt ein tatsächlich empfangener Wert
+  (`energieGemeldet`), nicht die Beschreibung. Die Vaillant VR940f beschreibt `acEnergyConsumed`, schickt aber
+  nie einen Wert - der hochgerechnete Zählerstand blieb deshalb stehen (Forum 144877 #14).
+- Neu: Variable `GrenzeBis` (~UnixTimestamp, „Leistungsgrenze endet um“) aus `timePeriod.endTime` der aktiven Grenze.
+
 ## 0.4.0 (Build 6, 09.11.2026)
 
 - WP-Steuermuster (SUITE.md, heatpump 1.18, Dietmar 09.11.2026): `optionalRunID` (OhpcfLauf, schaltbar),

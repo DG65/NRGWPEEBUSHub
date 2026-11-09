@@ -1,7 +1,7 @@
 # NRG-Stack WPEEBUSHub
 
 [![Symcon](https://img.shields.io/badge/Symcon-PHPModul-red.svg)](https://www.symcon.de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/)
-[![Modul Version](https://img.shields.io/badge/Modul%20Version-0.4.0-blue.svg)](library.json)
+[![Modul Version](https://img.shields.io/badge/Modul%20Version-0.4.1-blue.svg)](library.json)
 [![Symcon Version](https://img.shields.io/badge/Symcon%20Version-9.0%2B-green.svg)](https://www.symcon.de)
 [![License](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-lightgrey.svg)](LICENSE)
 [![PayPal](https://img.shields.io/badge/PayPal-Spenden-blue.svg)](https://paypal.me/DietmarGureth)
@@ -53,6 +53,7 @@ mit echten Geräten sind sehr willkommen.
 | `EnergieHochgerechnet` | Zählerstand in kWh, aus der gemessenen Leistung hochgerechnet, wenn die Wärmepumpe keinen meldet (z. B. Vaillant) |
 | `Grenze` | Leistungsgrenze in W (schaltbar; zeigt den von der Wärmepumpe bestätigten Wert) |
 | `GrenzeAktiv` | Leistungsgrenze aktiv (schaltbar) |
+| `GrenzeBis` | Ende einer befristeten Grenze (0 = ohne Ende) |
 | `Ausfallgrenze` | Grenze, die die Wärmepumpe ohne Lebenszeichen des Energiemanagements anwendet |
 | `Nennleistung` | Maximale Leistungsaufnahme laut Wärmepumpe |
 | `OhpcfZustand` | Optionaler Verdichterlauf: 0 nicht angeboten, 1 angeboten, 2 eingeplant, 3 läuft, 4 pausiert, 5 beendet |

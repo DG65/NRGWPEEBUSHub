@@ -162,6 +162,9 @@ $de = [
     'Another system (EMS stays out)' => 'Ein anderes System (EMS hält sich heraus)',
     'The NRG-Stack EMS only switches the heat pump if this is not set to “another system”. It first uses only the optional run for PV surplus; the § 14a limit stays with the SteuerboxHub.' => 'Das NRG-Stack EMS schaltet die Wärmepumpe nur, wenn hier nicht „ein anderes System“ eingestellt ist. Es nutzt zunächst nur den Zusatzlauf bei PV-Überschuss; die §-14a-Grenze bleibt beim SteuerboxHub.',
     '• 🎛️ The NRG-Stack EMS can now use the heat pump: optional run, its power and the power limit are part of the heat pump contract (version 1.18). New setting “Who controls this heat pump?” - with “another system” the EMS stays out.' => '• 🎛️ Das NRG-Stack EMS kann die Wärmepumpe jetzt nutzen: Zusatzlauf, seine Leistung und die Leistungsgrenze stehen im Wärmepumpen-Vertrag (Version 1.18). Neue Einstellung „Wer steuert diese Wärmepumpe?“ - bei „ein anderes System“ hält sich das EMS heraus.',
+    'Power limit ends at' => 'Leistungsgrenze endet um',
+    '• Fix: the calculated meter reading now also runs if the heat pump describes a meter but never sends a value (Vaillant).' => '• Behoben: Der hochgerechnete Zählerstand läuft jetzt auch, wenn die Wärmepumpe einen Zähler beschreibt, aber nie einen Wert schickt (Vaillant).',
+    '• New: “Power limit ends at” shows when a time-limited power limit ends.' => '• Neu: „Leistungsgrenze endet um“ zeigt, wann eine befristete Leistungsgrenze abläuft.',
 ];
 
 $ziel = dirname(__DIR__) . '/WPEEBUSHub/locale.json';

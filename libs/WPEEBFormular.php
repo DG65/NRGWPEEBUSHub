@@ -19,6 +19,10 @@ trait WPEEBFormular
             '• Hangs as a child instance on the NRG-Stack EEBUS gateway, which takes care of certificate, pairing and connection.',
             '• Delivers the heat pump contract of the NRG-Stack like the other heat pump modules, with measured power and energy.',
         ],
+        '0.4.1' => [
+            '• Fix: the calculated meter reading now also runs if the heat pump describes a meter but never sends a value (Vaillant).',
+            '• New: “Power limit ends at” shows when a time-limited power limit ends.',
+        ],
         '0.4.0' => [
             '• 🎛️ The NRG-Stack EMS can now use the heat pump: optional run, its power and the power limit are part of the heat pump contract (version 1.18). New setting “Who controls this heat pump?” - with “another system” the EMS stays out.',
         ],

@@ -391,6 +391,23 @@ $anm = json_decode($gw->attrs['Anmeldungen'], true)['30003'] ?? [];
 pruefe(in_array('monitoringOfDhwTemperature', array_column($anm['useCases'] ?? [], 'name'), true) && in_array('DHWCircuit', $anm['remote']['entityTypes'] ?? [], true),
     'Angemeldet mit MDT, Warmwasserkreis wird mit abonniert');
 
+// Vaillant VR940f (Forum 144877 #14): beschreibt acEnergyConsumed, schickt aber nie einen Wert -> trotzdem hochrechnen.
+$sende(['Event' => 'data', 'function' => 'measurementDescriptionListData', 'data' => ['measurementDescriptionData' => [
+    ['measurementId' => 0, 'measurementType' => 'power', 'unit' => 'W', 'scopeType' => 'acPowerTotal']]]]); // früheren Zählerstand vergessen
+$sende(['Event' => 'data', 'function' => 'measurementDescriptionListData', 'data' => ['measurementDescriptionData' => [
+    ['measurementId' => 0, 'measurementType' => 'power', 'unit' => 'W', 'scopeType' => 'acPowerTotal'],
+    ['measurementId' => 4, 'measurementType' => 'energy', 'unit' => 'Wh', 'scopeType' => 'acEnergyConsumed']]]]);
+$sende(['Event' => 'data', 'function' => 'measurementListData', 'data' => ['measurementData' => [['measurementId' => 0, 'value' => ['number' => 1500, 'scale' => 0]]]]]);
+pruefe($wp->GetFunctions()[0]['energyMeasured'] === false && $wp->GetFunctions()[0]['EnergyID'] === $wp->ids['EnergieHochgerechnet'],
+    'Energiezähler beschrieben, aber nie ein Wert: hochgerechneter Zählerstand gilt (Vaillant)');
+// Befristete Grenze: Ende als Zeitpunkt sichtbar.
+$sende(['Event' => 'data', 'function' => 'loadControlLimitListData', 'data' => ['loadControlLimitData' => [
+    ['limitId' => 9, 'isLimitChangeable' => true, 'isLimitActive' => true, 'value' => ['number' => 4200, 'scale' => 0], 'timePeriod' => ['endTime' => 'PT3600S']]]]]);
+pruefe(abs(($wp->vars['GrenzeBis'] ?? 0) - (time() + 3600)) <= 2, 'Befristete Grenze: „Leistungsgrenze endet um“ = jetzt + 1 h');
+$sende(['Event' => 'data', 'function' => 'loadControlLimitListData', 'data' => ['loadControlLimitData' => [
+    ['limitId' => 9, 'isLimitChangeable' => true, 'isLimitActive' => false, 'value' => ['number' => 4200, 'scale' => 0]]]]]);
+pruefe($wp->vars['GrenzeBis'] === 0, 'Grenze aufgehoben: Ende 0');
+
 // Wärmepumpe ohne eigenen Zählerstand (wie die Vaillant VR940f, Thread 144877 #10): Zählerstand hochrechnen.
 $sende(['Event' => 'data', 'function' => 'measurementDescriptionListData', 'data' => ['measurementDescriptionData' => [
     ['measurementId' => 0, 'measurementType' => 'power', 'unit' => 'W', 'scopeType' => 'acPowerTotal']]]]);
