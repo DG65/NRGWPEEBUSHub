@@ -21,9 +21,14 @@ encryption) is handled by the **NRG-Stack EEBUS gateway**, to which this instanc
 
 According to manufacturers and field reports (e.g. evcc, gridX), EEBUS with power/energy and mostly
 power limitation is offered by e.g. Viessmann Vitocal (via Vitoconnect), Bosch/Buderus with MX400,
-NIBE S series, Vaillant via VR940f (measurements, no LPC). Wolf Link only opens the connection itself:
-set the gateway (0.5.0 or newer) to “The device connects to the gateway”. Feedback with real devices is
-very welcome.
+NIBE S series, Vaillant via VR940f (measurements and power limitation, confirmed in the beta test). Wolf Link
+only opens the connection itself: set the gateway (0.5.0 or newer) to “The device connects to the gateway”.
+Feedback with real devices is very welcome.
+
+> **Vaillant:** set the gateway to “The device connects to the gateway” (gateway 0.7.4 or newer). If the
+> gateway connects to the Vaillant, it closes the connection every minute; if the Vaillant connects to the
+> gateway, it runs stable (beta test 10.11.2026). The heat pump decides itself when it connects; once the
+> connection is up, it stays up.
 
 ## Requirements
 

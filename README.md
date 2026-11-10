@@ -22,9 +22,14 @@ Instanz als Kind hängt.
 
 Laut Herstellerangaben und Praxisberichten (u. a. evcc, gridX) bieten EEBUS mit Leistung/Energie und
 meist auch Leistungsbegrenzung u. a.: Viessmann Vitocal (über Vitoconnect), Bosch/Buderus mit MX400,
-NIBE S-Serie, Vaillant über VR940f (Messwerte, ohne LPC). Wolf Link baut die Verbindung nur selbst
-auf: dafür das Gateway (ab 0.5.0) auf „Das Gerät verbindet sich zum Gateway“ stellen. Rückmeldungen
-mit echten Geräten sind sehr willkommen.
+NIBE S-Serie, Vaillant über VR940f (Messwerte und Leistungsbegrenzung, im Beta-Test bestätigt). Wolf Link
+baut die Verbindung nur selbst auf: dafür das Gateway (ab 0.5.0) auf „Das Gerät verbindet sich zum Gateway“
+stellen. Rückmeldungen mit echten Geräten sind sehr willkommen.
+
+> **Vaillant:** Das Gateway auf „Das Gerät verbindet sich zum Gateway“ stellen (Gateway ab 0.7.4). Verbindet
+> sich das Gateway zur Vaillant, trennt sie die Verbindung jede Minute; verbindet sich die Vaillant zum
+> Gateway, läuft sie stabil (Beta-Test 10.11.2026). Wann sich die Wärmepumpe meldet, entscheidet sie selbst;
+> steht die Verbindung, bleibt sie stehen.
 
 ## Voraussetzungen
 
