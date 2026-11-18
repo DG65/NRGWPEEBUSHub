@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.2 (Build 10, 18.11.2026)
+
+- Behoben: „Erreichbar“ blieb an, wenn das Gateway nach einem Modul-Update still mit einer neuen Sitzung auf die
+  Wärmepumpe wartete (Forum 144877 #29). Die Instanz fragt jetzt bei jeder Anmeldung (jede Minute und nach
+  „Übernehmen“) beim Gateway nach, ob die Verbindung steht, und vergisst die Wärmepumpe sonst.
+
 ## 0.5.1 (Build 9, 09.11.2026)
 
 - Dauer einer befristeten Leistungsgrenze im Format von spine-go (`PT14M23S` statt `PT863S`), wie es auch die

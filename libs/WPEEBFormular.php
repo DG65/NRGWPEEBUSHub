@@ -19,6 +19,9 @@ trait WPEEBFormular
             '• Hangs as a child instance on the NRG-Stack EEBUS gateway, which takes care of certificate, pairing and connection.',
             '• Delivers the heat pump contract of the NRG-Stack like the other heat pump modules, with measured power and energy.',
         ],
+        '0.5.2' => [
+            '• Fix: “Reachable” stayed on when the gateway silently waited for the heat pump again, e.g. after a module update. The instance now asks the gateway every minute whether the connection is up.',
+        ],
         '0.5.1' => [
             '• Fix: the duration of a time-limited power limit is now written like the reference software (e.g. PT14M23S). Together with EEBUS gateway 0.7.1 for a Vaillant that did not answer active limits.',
         ],

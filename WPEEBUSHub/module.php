@@ -244,7 +244,25 @@ class WPEEBUSHub extends IPSModule
             $this->SetStatus(202);
             return;
         }
+        $this->verbindungPruefen();
         $this->statusAktualisieren();
+    }
+
+    /**
+     * Steht die Verbindung laut Gateway nicht, Gerät vergessen. Das Gateway meldet eine Trennung nur aus einer
+     * laufenden Sitzung; beginnt es (z. B. nach einem Modul-Update) still mit einer neuen, bliebe „Erreichbar“
+     * sonst an (Forum 144877 #29).
+     */
+    private function verbindungPruefen(): void
+    {
+        $st = $this->gateway(['Cmd' => 'GetState']);
+        if (!array_key_exists('connected', $st) || !empty($st['connected'])) {
+            return;
+        }
+        if ($this->geraet() !== [] || (bool)@$this->GetValue('Erreichbar')) {
+            $this->SendDebug('Gateway', 'not connected (phase ' . (string)($st['phase'] ?? '?') . '), forgetting the heat pump', 0);
+            $this->geraetVergessen();
+        }
     }
 
     private function statusAktualisieren(): void

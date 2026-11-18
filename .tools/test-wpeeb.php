@@ -457,6 +457,19 @@ pruefe($wp->vars['Erreichbar'] === true, 'Wegfall einer fremden Entität ändert
 $sende(['Event' => 'connection', 'state' => 'disconnected']);
 pruefe($wp->vars['Erreichbar'] === false && $wp->status === 203 && $wp->GetFunctions()[0]['reachable'] === false, 'Verbindung weg: nicht erreichbar, Status 203');
 
+// Forum 144877 #29: Gateway beginnt still neu (kein disconnected) - der Anmelde-Takt merkt es über GetState.
+$standVorher = $gw->attrs['Stand'];
+$gw->attrs['Stand'] = json_encode(['phase' => 'data']);
+$sende(['Event' => 'remoteEntity', 'state' => 'added', 'entity' => [1], 'type' => 'HeatPumpAppliance',
+    'features' => [['type' => 'LoadControl'], ['type' => 'Measurement']]]);
+$wp->Anmelden();
+pruefe($wp->vars['Erreichbar'] === true && $wp->status === 102, 'Anmelde-Takt bei stehender Verbindung: bleibt erreichbar');
+$gw->attrs['Stand'] = json_encode(['phase' => 'idle']);
+$wp->Anmelden();
+pruefe($wp->vars['Erreichbar'] === false && $wp->status === 203 && json_decode($wp->attrs['Geraet'], true) === [],
+    'Anmelde-Takt: Gateway wartet ohne Trennungsmeldung → nicht erreichbar, Status 203');
+$gw->attrs['Stand'] = $standVorher;
+
 // Zweisprachigkeit
 require_once __DIR__ . '/i18n-texte.php';
 $quellen = wpeebQuelltexte($wurzel);
