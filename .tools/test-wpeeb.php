@@ -322,7 +322,7 @@ pruefe($k > 0 && $z4 === [], 'Hochrechnung: bei Trennung bis jetzt zählen, dann
 // WP-Steuermuster 1.18: Stellgrößen als Variablen (EMS schaltet per RequestAction), Steuerhoheit aus der Instanz.
 pruefe($f['controllable'] === true && $f['powerLimitID'] === $wp->ids['Grenze'] && $f['powerLimitActiveID'] === $wp->ids['GrenzeAktiv']
     && $f['optionalRunID'] === 0, 'Vertrag 1.18: steuerbar, Grenze/Grenze aktiv als Stellgrößen; ohne OHPCF-Angebot kein optionalRunID');
-pruefe($f['failsafeSec'] === 900, 'Vertrag 1.19: failsafeSec 900 s (Standard) bei steuerbarer Wärmepumpe');
+pruefe($f['failsafeSec'] === 900 && $f['failsafeMode'] === 'deadman' && $f['pollInterval'] === 0, 'Vertrag 1.19: failsafeSec 900 s, failsafeMode deadman, pollInterval 0 (ereignisgesteuert)');
 $wp->props['RueckfallSekunden'] = 0;
 pruefe($wp->GetFunctions()[0]['failsafeSec'] === 0, 'Rückfall 0 = unbefristet: failsafeSec 0 (keine Schreibfreigabe für fremde Konsumenten)');
 $wp->RequestAction('Grenze', 3000);

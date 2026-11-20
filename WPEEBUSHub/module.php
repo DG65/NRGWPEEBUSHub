@@ -1085,8 +1085,6 @@ class WPEEBUSHub extends IPSModule
             'energyKind'           => 'counter',
             'measured'             => true,
             'reachable'            => (bool)@$this->GetValue('Erreichbar'),
-            // Letztes Datenpaket der Wärmepumpe (heatpump 1.13, Frische-Check der Konsumenten).
-            'lastSeenAt'           => $this->ReadAttributeInteger('LastSeenAt'),
             'outsideTempID'        => 0,
             'outdoorTemperatureID' => 0,
             'z1WaterTempID'        => 0,
@@ -1110,12 +1108,16 @@ class WPEEBUSHub extends IPSModule
             // Rückfall (1.19): so lange gilt ein über den Vertrag geschriebener Wert; Konsument schreibt binnen der
             // Hälfte nach (gleicher Wert = nur Frist verlängern). 0 = keine Schreibfreigabe für fremde Konsumenten.
             'failsafeSec'          => $this->steuerbar() ? $this->rueckfallSekunden() : 0,
+            // SUITE Fremdanbindung 5a/5c: Konsument erneuert binnen failsafeSec/2, gleicher Wert verlängert nur die Frist.
+            'failsafeMode'         => 'deadman',
             'optionalRunID'        => !empty($g['ohpcfEntity']) ? $id('OhpcfLauf') : 0,
             'optionalRunPowerID'   => !empty($g['ohpcfEntity']) ? $id('OhpcfLeistung') : 0,
             'optionalRunPowerMaxID' => !empty($g['ohpcfEntity']) ? $id('OhpcfLeistungMax') : 0,
             'powerLimitID'         => isset($g['limitId']) ? $id('Grenze') : 0,
             'powerLimitActiveID'   => isset($g['limitId']) ? $id('GrenzeAktiv') : 0,
             'lastSeenAt'           => $this->ReadAttributeInteger('LastSeenAt'),
+            // EEBUS meldet Änderungen selbst, das Modul fragt nicht ab: 0 = ereignisgesteuert (SUITE 5f).
+            'pollInterval'         => 0,
         ]];
     }
 

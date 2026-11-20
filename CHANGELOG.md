@@ -3,7 +3,8 @@
 ## 0.6.0 (Build 11, 20.11.2026)
 
 - Fremdanbindung (SUITE.md, Dietmar 20.11.2026), Vertrag `heatpump` 1.19 (additiv): `contractType` 'heatpump',
-  `failsafeSec` (Rückfallzeit, nur bei steuerbarer Wärmepumpe, sonst 0) und `lastSeenAt` (letztes Datenpaket).
+  `failsafeSec` (Rückfallzeit, nur bei steuerbarer Wärmepumpe, sonst 0) mit `failsafeMode` 'deadman'
+  (Nachschreiben verlängert nur die Frist) und `pollInterval` 0 (ereignisgesteuert).
 - Neue Einstellung „Rückfall ohne neue Befehle nach“ (`RueckfallSekunden`, Standard 900 s, 0 = unbefristet):
   Über RequestAction geschaltete Stellgrößen gelten nur so lange. Die Grenze wird EEBUS-nativ befristet
   geschrieben (LPC timePeriod), die Wärmepumpe hebt sie ohne Nachschreiben selbst auf. Der Wunsch für den
