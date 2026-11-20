@@ -1,7 +1,7 @@
 # NRG-Stack WPEEBUSHub
 
 [![Symcon](https://img.shields.io/badge/Symcon-PHPModul-red.svg)](https://www.symcon.de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/)
-[![Modul Version](https://img.shields.io/badge/Modul%20Version-0.5.2-blue.svg)](library.json)
+[![Modul Version](https://img.shields.io/badge/Modul%20Version-0.6.0-blue.svg)](library.json)
 [![Symcon Version](https://img.shields.io/badge/Symcon%20Version-9.0%2B-green.svg)](https://www.symcon.de)
 [![License](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-lightgrey.svg)](LICENSE)
 [![PayPal](https://img.shields.io/badge/PayPal-Spenden-blue.svg)](https://paypal.me/DietmarGureth)
@@ -14,7 +14,7 @@ Verdichterlauf für PV-Überschuss starten (OHPCF). Die Verbindung selbst
 (Zertifikat, Kopplung, Verschlüsselung) übernimmt das **NRG-Stack EEBUS-Gateway**, an dem diese
 Instanz als Kind hängt.
 
-> Stand 0.5.2: geprüft gegen eine simulierte Wärmepumpe (eebus-go) und an einer echten Vaillant
+> Stand 0.6.0: geprüft gegen eine simulierte Wärmepumpe (eebus-go) und an einer echten Vaillant
 > (Leistung, optionaler Verdichterlauf und Warmwassertemperatur bestätigt). Die Leistungsbegrenzung kommt
 > wie bei evcc von einem eigenen „Netzwächter“-Teil (GridGuard) des Gateways, dafür braucht es Gateway 0.7.0.
 
@@ -77,10 +77,19 @@ stellen. Rückmeldungen mit echten Geräten sind sehr willkommen.
 
 ## Im NRG-Stack
 
-Das NRG-Stack EMS kann die Wärmepumpe über den Vertrag nutzen (WP-Steuermuster, Version 1.18): Es schaltet
+Das NRG-Stack EMS kann die Wärmepumpe über den Vertrag nutzen (WP-Steuermuster, Version 1.19): Es schaltet
 den Zusatzlauf bei PV-Überschuss über die Variable „Optionalen Verdichterlauf ausführen“. Die Einstellung
 „Wer steuert diese Wärmepumpe?“ legt fest, ob es das darf - bei „ein anderes System“ hält es sich heraus.
 Die §-14a-Grenze bleibt beim SteuerboxHub.
+
+**Rückfall (ab 0.6.0, Vertrag 1.19 `failsafeSec`):** Werden „Leistungsgrenze“, „Leistungsgrenze aktiv“ oder
+„Optionalen Verdichterlauf ausführen“ über die Variable geschaltet (EMS, andere Module, Visualisierung), gilt
+der Befehl nur für die Rückfallzeit (Einstellung „Rückfall ohne neue Befehle nach“, Standard 900 s). Die Grenze
+schreibt das Modul mit dieser Dauer, ohne neuen Befehl hebt die Wärmepumpe sie selbst auf. Der Wunsch für den
+Zusatzlauf verfällt, danach verhält sich das Modul wie bei „Aus“ (pausieren, sonst abbrechen). Wer steuert,
+schreibt spätestens nach der halben Zeit nach; derselbe Wert verlängert nur die Frist. 0 = unbefristet, dann
+meldet der Vertrag `failsafeSec` 0 und fremde Module dürfen nicht steuern. Aufrufe aus Skripten
+(`WPEEB_SetPowerLimit`, `WPEEB_SetOptionalRun`) gelten wie angegeben.
 
 Leistung und Zählerstand nutzen die gemeinsamen Profile `NRG.Watt`/`NRG.kWh` wie MeterHub. Damit
 WP-Monitor und Energiefluss des NRG-Stack Dashboards den Verlauf zeigen können, müssen beide archiviert
@@ -96,7 +105,7 @@ nie von selbst ein.
 | `WPEEB_SetOptionalRun(int $id, bool $Run)` | bool: optionalen Lauf ein (sofort) oder aus (pausieren, sonst abbrechen) |
 | `WPEEB_StartOptionalRun(int $id, int $DelaySeconds)` | bool: angebotenen Lauf einplanen |
 | `WPEEB_PauseOptionalRun` / `WPEEB_ResumeOptionalRun` / `WPEEB_AbortOptionalRun` (`int $id`) | bool |
-| `WPEEB_GetFunctions(int $id)` | Wärmepumpen-Vertrag des NRG-Stack (`Type` `heatpump`, Version 1.18): Leistung gemessen, Energie gemessen oder hochgerechnet (`energyMeasured`), zusätzlich die MeterHub-Felder für den Energiefluss |
+| `WPEEB_GetFunctions(int $id)` | Wärmepumpen-Vertrag des NRG-Stack (`Type`/`contractType` `heatpump`, Version 1.19): Leistung gemessen, Energie gemessen oder hochgerechnet (`energyMeasured`), zusätzlich die MeterHub-Felder für den Energiefluss |
 | `WPEEB_GetState(int $id)` | JSON: Zustand zur Diagnose |
 
 Die Grenze ist eine Vorgabe: Wie die Wärmepumpe sie einhält, entscheidet sie selbst. Ob sie sie

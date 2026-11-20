@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0 (Build 11, 20.11.2026)
+
+- Fremdanbindung (SUITE.md, Dietmar 20.11.2026), Vertrag `heatpump` 1.19 (additiv): `contractType` 'heatpump',
+  `failsafeSec` (Rückfallzeit, nur bei steuerbarer Wärmepumpe, sonst 0) und `lastSeenAt` (letztes Datenpaket).
+- Neue Einstellung „Rückfall ohne neue Befehle nach“ (`RueckfallSekunden`, Standard 900 s, 0 = unbefristet):
+  Über RequestAction geschaltete Stellgrößen gelten nur so lange. Die Grenze wird EEBUS-nativ befristet
+  geschrieben (LPC timePeriod), die Wärmepumpe hebt sie ohne Nachschreiben selbst auf. Der Wunsch für den
+  optionalen Lauf verfällt (Prüfung im Anmelde-Takt, 60 s), danach wie „Aus“: pausieren, sonst abbrechen.
+  Skriptaufrufe `WPEEB_SetPowerLimit`/`WPEEB_SetOptionalRun` und die Testknöpfe bleiben wie angegeben.
+
 ## 0.5.2 (Build 10, 18.11.2026)
 
 - Behoben: „Erreichbar“ blieb an, wenn das Gateway nach einem Modul-Update still mit einer neuen Sitzung auf die

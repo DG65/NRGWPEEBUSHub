@@ -1,7 +1,7 @@
 # NRG-Stack WPEEBUSHub
 
 [![Symcon](https://img.shields.io/badge/Symcon-PHP%20module-red.svg)](https://www.symcon.de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/)
-[![Module version](https://img.shields.io/badge/Module%20version-0.5.2-blue.svg)](library.json)
+[![Module version](https://img.shields.io/badge/Module%20version-0.6.0-blue.svg)](library.json)
 [![Symcon version](https://img.shields.io/badge/Symcon%20version-9.0%2B-green.svg)](https://www.symcon.de)
 [![License](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-lightgrey.svg)](LICENSE)
 [![PayPal](https://img.shields.io/badge/PayPal-Donate-blue.svg)](https://paypal.me/DietmarGureth)
@@ -13,7 +13,7 @@ case MPC), limits the power consumption (LPC) and starts an optional compressor 
 (OHPCF). The connection itself (certificate, pairing,
 encryption) is handled by the **NRG-Stack EEBUS gateway**, to which this instance is attached as a child.
 
-> Version 0.5.2: tested against a simulated heat pump (eebus-go) and on a real Vaillant
+> Version 0.6.0: tested against a simulated heat pump (eebus-go) and on a real Vaillant
 > (power, optional compressor run and hot water temperature confirmed). As in evcc, power limitation is sent
 > from a separate grid guard part (GridGuard) of the gateway, which requires gateway 0.7.0.
 
@@ -74,10 +74,19 @@ Feedback with real devices is very welcome.
 
 ## In the NRG-Stack
 
-The NRG-Stack EMS can use the heat pump via the contract (heat pump control pattern, version 1.18): it switches
+The NRG-Stack EMS can use the heat pump via the contract (heat pump control pattern, version 1.19): it switches
 the optional run for PV surplus via the variable “Run optional compressor run”. The setting “Who controls this
 heat pump?” decides whether it may - with “another system” it stays out. The § 14a limit stays with the
 SteuerboxHub.
+
+**Fallback (from 0.6.0, contract 1.19 `failsafeSec`):** When “Power limit”, “Power limit active” or “Run
+optional compressor run” are switched via the variable (EMS, other modules, visualization), the command only
+applies for the fallback time (setting “Fallback without new commands after”, default 900 s). The module writes
+the limit with this duration; without a new command the heat pump lifts it itself. The wish for the optional
+run expires, after which the module behaves as for “off” (pause, otherwise abort). Whoever controls rewrites at
+the latest after half the time; the same value only extends the period. 0 = no time limit; the contract then
+reports `failsafeSec` 0 and other modules may not control. Calls from scripts (`WPEEB_SetPowerLimit`,
+`WPEEB_SetOptionalRun`) apply as given.
 
 Power and meter reading use the shared profiles `NRG.Watt`/`NRG.kWh` like MeterHub. For the heat pump
 monitor and the energy flow of the NRG-Stack dashboard to show the history, both must be archived: one
@@ -92,7 +101,7 @@ click under “Energy and archive” in the form is enough. The module never swi
 | `WPEEB_SetOptionalRun(int $id, bool $Run)` | bool: optional run on (now) or off (pause, otherwise abort) |
 | `WPEEB_StartOptionalRun(int $id, int $DelaySeconds)` | bool: schedule the offered run |
 | `WPEEB_PauseOptionalRun` / `WPEEB_ResumeOptionalRun` / `WPEEB_AbortOptionalRun` (`int $id`) | bool |
-| `WPEEB_GetFunctions(int $id)` | NRG-Stack heat pump contract (`Type` `heatpump`, version 1.18), measured power/energy |
+| `WPEEB_GetFunctions(int $id)` | NRG-Stack heat pump contract (`Type`/`contractType` `heatpump`, version 1.19), measured power/energy |
 | `WPEEB_GetState(int $id)` | JSON: state for diagnosis |
 
 The limit is a request: the heat pump decides itself how it complies. Whether it accepted it is shown

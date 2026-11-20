@@ -19,6 +19,9 @@ trait WPEEBFormular
             '• Hangs as a child instance on the NRG-Stack EEBUS gateway, which takes care of certificate, pairing and connection.',
             '• Delivers the heat pump contract of the NRG-Stack like the other heat pump modules, with measured power and energy.',
         ],
+        '0.6.0' => [
+            '• 🛟 New for control by other modules (heat pump contract 1.19): “Power limit” and “Run optional compressor run” switched via the variable only apply for the fallback time (default 15 min). Without a new command, the heat pump lifts the limit itself and the module ends the optional run. Calls from scripts stay unlimited.',
+        ],
         '0.5.2' => [
             '• Fix: “Reachable” stayed on when the gateway silently waited for the heat pump again, e.g. after a module update. The instance now asks the gateway every minute whether the connection is up.',
         ],

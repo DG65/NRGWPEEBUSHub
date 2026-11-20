@@ -25,7 +25,7 @@ class WPEEBUSHub extends IPSModule
 
     private const GATEWAY_MODULE = '{32809AEC-3A90-455F-8FE4-188DF37D594F}';
     private const DATA_ZUM_GATEWAY = '{26D4DA14-6C0D-4686-AE00-D23234BAD90D}';
-    private const CONTRACT_VERSION = '1.18';
+    private const CONTRACT_VERSION = '1.19';
     // Steuerhoheit (heatpump 1.18, WP-Steuermuster): wer diese Wärmepumpe steuern darf. Das EMS schreibt nur bei
     // none/ems und controllable; „other“ = ein anderes System steuert, das EMS hält sich heraus.
     private const STEUERHOHEIT = ['none', 'ems', 'other'];
@@ -72,6 +72,10 @@ class WPEEBUSHub extends IPSModule
         $this->RegisterAttributeBoolean('OhpcfWunsch', false);
         $this->RegisterPropertyInteger('ReboostMinuten', 10);
         $this->RegisterPropertyString('Steuerhoheit', 'none');
+        // Rückfall (heatpump 1.19, failsafeSec, SUITE „Fremdanbindung“): Stellgrößen, die über RequestAction kommen
+        // (Vertrag, Visualisierung), gelten nur so lange; danach sicherer Zustand. 0 = unbefristet wie bis 0.5.x.
+        $this->RegisterPropertyInteger('RueckfallSekunden', 900);
+        $this->RegisterAttributeInteger('OhpcfWunschBis', 0);
         $this->RegisterTimer('Reboost', 0, 'WPEEB_ReboostTakt($_IPS[\'TARGET\']);');
         // Zuletzt gewünschte Grenze {watt, aktiv, bis} und laufende Bestätigung {seit, warte}.
         $this->RegisterAttributeString('GrenzeWunsch', '{}');
@@ -246,6 +250,26 @@ class WPEEBUSHub extends IPSModule
         }
         $this->verbindungPruefen();
         $this->statusAktualisieren();
+        $this->rueckfallPruefen();
+    }
+
+    private function rueckfallSekunden(): int
+    {
+        return max(0, $this->ReadPropertyInteger('RueckfallSekunden'));
+    }
+
+    /** Ein über RequestAction gesetzter Wunsch für den optionalen Lauf verfällt ohne Nachschreiben (failsafeSec). */
+    private function rueckfallPruefen(): void
+    {
+        $bis = $this->ReadAttributeInteger('OhpcfWunschBis');
+        if ($bis <= 0 || $bis > time()) {
+            return;
+        }
+        $this->WriteAttributeInteger('OhpcfWunschBis', 0);
+        if ($this->ReadAttributeBoolean('OhpcfWunsch')) {
+            $this->LogMessage($this->t('Optional run switched off: no new command within %s s (fallback).', (string)$this->rueckfallSekunden()), KL_MESSAGE);
+            $this->SetOptionalRun(false);
+        }
     }
 
     /**
@@ -725,16 +749,20 @@ class WPEEBUSHub extends IPSModule
     public function RequestAction($Ident, $Value)
     {
         switch ($Ident) {
+            // Über RequestAction (Vertrag, Visualisierung) befristet mit der Rückfallzeit: Die Grenze schreibt das
+            // Modul mit dieser Dauer, die Wärmepumpe hebt sie ohne Nachschreiben selbst auf (LPC timePeriod).
             case 'Grenze':
-                $this->SetPowerLimit((float)$Value, 0);
+                $this->SetPowerLimit((float)$Value, $this->rueckfallSekunden());
                 break;
             case 'OhpcfLauf':
                 $this->SetOptionalRun((bool)$Value);
+                $fs = $this->rueckfallSekunden();
+                $this->WriteAttributeInteger('OhpcfWunschBis', $Value && $fs > 0 ? time() + $fs : 0);
                 break;
             case 'GrenzeAktiv':
                 if ($Value) {
                     $w = @$this->GetValue('Grenze');
-                    $this->SetPowerLimit(is_numeric($w) ? (float)$w : 0.0, 0);
+                    $this->SetPowerLimit(is_numeric($w) ? (float)$w : 0.0, $this->rueckfallSekunden());
                 } else {
                     $this->ClearPowerLimit();
                 }
@@ -870,6 +898,8 @@ class WPEEBUSHub extends IPSModule
     {
         // Ein/Aus wie evcc: der Wunsch bleibt bestehen; bei „Ein“ wird jeder neu angebotene Lauf eingeplant.
         $this->WriteAttributeBoolean('OhpcfWunsch', $Run);
+        // Aufruf aus einem Skript gilt unbefristet; RequestAction setzt die Frist danach selbst.
+        $this->WriteAttributeInteger('OhpcfWunschBis', 0);
         $this->reboostTimer();
         return $this->ohpcfAngleichen($Run);
     }
@@ -1011,6 +1041,7 @@ class WPEEBUSHub extends IPSModule
         // Wie „Optionalen Verdichterlauf ausführen“: Starten/Fortsetzen = Ein, Pausieren/Abbrechen = Aus (sonst plant der
         // Reboost einen gerade abgebrochenen Lauf sofort wieder ein).
         $this->WriteAttributeBoolean('OhpcfWunsch', in_array($Aktion, ['start', 'resume'], true));
+        $this->WriteAttributeInteger('OhpcfWunschBis', 0);
         $this->reboostTimer();
         return $ok ? '✅ ' . $this->t('Sent to the heat pump. Its answer appears in “Optional compressor run” in a few seconds.')
             : '⛔ ' . $this->t('Could not be sent. Details are in the message log.');
@@ -1020,7 +1051,7 @@ class WPEEBUSHub extends IPSModule
     // Verbund-Vertrag
     // ------------------------------------------------------------------
 
-    /** WPEEB_GetFunctions($id): array — heatpump-Vertrag 1.17 wie WPModbusHub/WPHub/HeishaMon. */
+    /** WPEEB_GetFunctions($id): array — heatpump-Vertrag 1.19 wie WPModbusHub/WPHub/HeishaMon. */
     public function GetFunctions(): array
     {
         $id = function (string $ident): int {
@@ -1032,6 +1063,7 @@ class WPEEBUSHub extends IPSModule
         $energieID = $id($this->energieIdent());
         return [[
             'contractVersion'      => self::CONTRACT_VERSION,
+            'contractType'         => 'heatpump',
             'Type'                 => 'heatpump',
             'Caption'              => IPS_GetName($this->InstanceID),
             'PowerID'              => $id('Leistung'),
@@ -1053,6 +1085,8 @@ class WPEEBUSHub extends IPSModule
             'energyKind'           => 'counter',
             'measured'             => true,
             'reachable'            => (bool)@$this->GetValue('Erreichbar'),
+            // Letztes Datenpaket der Wärmepumpe (heatpump 1.13, Frische-Check der Konsumenten).
+            'lastSeenAt'           => $this->ReadAttributeInteger('LastSeenAt'),
             'outsideTempID'        => 0,
             'outdoorTemperatureID' => 0,
             'z1WaterTempID'        => 0,
@@ -1073,6 +1107,9 @@ class WPEEBUSHub extends IPSModule
             // WP-Steuermuster (1.18): Stellgrößen als Variablen, geschaltet per RequestAction wie beim charger-Vertrag.
             'managedBy'            => $this->steuerhoheit(),
             'controllable'         => $this->steuerbar(),
+            // Rückfall (1.19): so lange gilt ein über den Vertrag geschriebener Wert; Konsument schreibt binnen der
+            // Hälfte nach (gleicher Wert = nur Frist verlängern). 0 = keine Schreibfreigabe für fremde Konsumenten.
+            'failsafeSec'          => $this->steuerbar() ? $this->rueckfallSekunden() : 0,
             'optionalRunID'        => !empty($g['ohpcfEntity']) ? $id('OhpcfLauf') : 0,
             'optionalRunPowerID'   => !empty($g['ohpcfEntity']) ? $id('OhpcfLeistung') : 0,
             'optionalRunPowerMaxID' => !empty($g['ohpcfEntity']) ? $id('OhpcfLeistungMax') : 0,
@@ -1221,6 +1258,8 @@ class WPEEBUSHub extends IPSModule
                     ['caption' => 'Another system (EMS stays out)', 'value' => 'other'],
                 ]],
                 ['type' => 'Label', 'caption' => 'The NRG-Stack EMS only switches the heat pump if this is not set to “another system”. It first uses only the optional run for PV surplus; the § 14a limit stays with the SteuerboxHub.'],
+                ['type' => 'NumberSpinner', 'name' => 'RueckfallSekunden', 'caption' => 'Fallback without new commands after', 'suffix' => 's', 'minimum' => 0, 'maximum' => 86400],
+                ['type' => 'Label', 'name' => 'RueckfallSekundenHint', 'caption' => 'Applies to “Power limit” and “Run optional compressor run” when switched by the EMS, another module or the visualization: without a new command, the heat pump lifts the limit itself and the module ends the optional run. 0 = no time limit (other modules may then not control the heat pump).'],
             ],
         ];
         return ['verbindung' => $verbindung, 'einstellungen' => $einstellungen, 'energie' => $energie, 'grenze' => $grenze, 'ohpcf' => $ohpcf];

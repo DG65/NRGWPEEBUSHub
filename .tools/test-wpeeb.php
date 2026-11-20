@@ -300,8 +300,8 @@ $sende(['Event' => 'data', 'function' => 'loadControlLimitListData', 'data' => [
 pruefe($wp->vars['Grenze'] === 4200.0 && $wp->vars['GrenzeAktiv'] === true, 'LPC: Bezugsgrenze (limitId 7, consume) 4200 W aktiv, Einspeisegrenze übergangen');
 
 $f = $wp->GetFunctions()[0];
-pruefe($f['Type'] === 'heatpump' && $f['contractVersion'] === '1.18' && $f['Measured'] === true && $f['PowerID'] === $wp->ids['Leistung']
-    && $f['EnergyID'] === $wp->ids['Energie'] && $f['energyMeasured'] === true && $f['reachable'] === true && $f['managedBy'] === 'none', 'Vertrag heatpump 1.18: gemessene Leistung und Energie der Wärmepumpe, erreichbar');
+pruefe($f['Type'] === 'heatpump' && $f['contractType'] === 'heatpump' && $f['contractVersion'] === '1.19' && is_int($f['lastSeenAt']) && $f['Measured'] === true && $f['PowerID'] === $wp->ids['Leistung']
+    && $f['EnergyID'] === $wp->ids['Energie'] && $f['energyMeasured'] === true && $f['reachable'] === true && $f['managedBy'] === 'none', 'Vertrag heatpump 1.19: contractType, lastSeenAt, gemessene Leistung und Energie der Wärmepumpe, erreichbar');
 pruefe($f['function'] === 'heatpump' && $f['powerID'] === $wp->ids['Leistung'] && $f['energyImportID'] === $wp->ids['Energie'] && $f['energyExportID'] === 0
     && $f['energyKind'] === 'counter' && $f['instanceID'] === 30003 && $f['label'] !== '', 'Vertrag: dieselben Felder in MeterHub-Form (function/powerID/energyImportID) für den Energiefluss');
 pruefe(($GLOBALS['PROFILE']['NRG.Watt']['_suffix'] ?? '') === ' W' && ($GLOBALS['PROFILE']['NRG.kWh']['_stellen'] ?? -1) === 1, 'Gemeinsame Profile NRG.Watt/NRG.kWh wie MeterHub angelegt');
@@ -322,6 +322,17 @@ pruefe($k > 0 && $z4 === [], 'Hochrechnung: bei Trennung bis jetzt zählen, dann
 // WP-Steuermuster 1.18: Stellgrößen als Variablen (EMS schaltet per RequestAction), Steuerhoheit aus der Instanz.
 pruefe($f['controllable'] === true && $f['powerLimitID'] === $wp->ids['Grenze'] && $f['powerLimitActiveID'] === $wp->ids['GrenzeAktiv']
     && $f['optionalRunID'] === 0, 'Vertrag 1.18: steuerbar, Grenze/Grenze aktiv als Stellgrößen; ohne OHPCF-Angebot kein optionalRunID');
+pruefe($f['failsafeSec'] === 900, 'Vertrag 1.19: failsafeSec 900 s (Standard) bei steuerbarer Wärmepumpe');
+$wp->props['RueckfallSekunden'] = 0;
+pruefe($wp->GetFunctions()[0]['failsafeSec'] === 0, 'Rückfall 0 = unbefristet: failsafeSec 0 (keine Schreibfreigabe für fremde Konsumenten)');
+$wp->RequestAction('Grenze', 3000);
+pruefe((json_decode($wp->attrs['GrenzeWunsch'], true)['bis'] ?? -1) === 0, 'Rückfall 0: Grenze über die Variable unbefristet');
+$wp->props['RueckfallSekunden'] = 900;
+$wp->RequestAction('Grenze', 3000);
+$bis = (int)(json_decode($wp->attrs['GrenzeWunsch'], true)['bis'] ?? 0);
+pruefe(abs($bis - (time() + 900)) <= 2, 'Grenze über die Variable: befristet auf die Rückfallzeit (Wärmepumpe hebt sie ohne Nachschreiben auf)');
+$wp->SetPowerLimit(3000, 0);
+pruefe((json_decode($wp->attrs['GrenzeWunsch'], true)['bis'] ?? -1) === 0, 'WPEEB_SetPowerLimit aus Skript: Dauer wie angegeben (0 = unbefristet)');
 $wp->props['Steuerhoheit'] = 'other';
 pruefe($wp->GetFunctions()[0]['managedBy'] === 'other', 'Steuerhoheit „anderes System“ im Vertrag (EMS hält sich heraus)');
 $wp->props['Steuerhoheit'] = 'kaputt';
@@ -380,6 +391,22 @@ pruefe($wp->attrs['OhpcfWunsch'] === false && $wp->timers['Reboost'] === 0, 'Tes
 $wp->log = [];
 $sende(['Event' => 'data', 'entity' => [2], 'function' => 'smartEnergyManagementPsData', 'data' => $ohpcf('inactive')]);
 pruefe($wp->log === [], 'Wunsch aus: ein neues Angebot wird nicht eingeplant');
+
+// Rückfall 1.19: ein über die Variable gesetzter Wunsch verfällt ohne Nachschreiben, ein Skriptaufruf nicht.
+$rueckfall = new ReflectionMethod(WPEEBUSHub::class, 'rueckfallPruefen');
+$wp->RequestAction('OhpcfLauf', true);
+pruefe($wp->attrs['OhpcfWunsch'] === true && abs($wp->attrs['OhpcfWunschBis'] - (time() + 900)) <= 2, 'Zusatzlauf über die Variable: Wunsch mit Frist (Rückfallzeit)');
+$rueckfall->invoke($wp);
+pruefe($wp->attrs['OhpcfWunsch'] === true, 'Frist läuft noch: Wunsch bleibt');
+$wp->attrs['OhpcfWunschBis'] = time() - 1;
+$wp->log = [];
+$rueckfall->invoke($wp);
+pruefe($wp->attrs['OhpcfWunsch'] === false && $wp->attrs['OhpcfWunschBis'] === 0 && strpos(implode("\n", $wp->log), 'Rückfall') !== false,
+    'Frist abgelaufen ohne Nachschreiben: Wunsch aus, Meldung (sicherer Zustand wie „Aus“)');
+$wp->RequestAction('OhpcfLauf', true);
+$wp->SetOptionalRun(true);
+pruefe($wp->attrs['OhpcfWunschBis'] === 0, 'WPEEB_SetOptionalRun aus Skript: unbefristet');
+$wp->SetOptionalRun(false);
 
 // [LPC-913]: Gewünschte Grenze an eine neu erschienene Grenze erneut senden, bis zur Annahme.
 $wp->SetPowerLimit(3500, 0);
